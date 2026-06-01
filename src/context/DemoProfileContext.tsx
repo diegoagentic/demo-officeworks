@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, type ReactNode } from 'react';
 import { DEMO_PROFILES, type DemoProfile, type DemoProfileId } from '../config/demoProfiles';
 
 export interface DemoProfileContextType {
@@ -14,18 +14,11 @@ export interface DemoProfileContextType {
 export const DemoProfileContext = createContext<DemoProfileContextType | undefined>(undefined);
 
 export function DemoProfileProvider({ children }: { children: ReactNode }) {
-    const [activeProfileId, setActiveProfileId] = useState<DemoProfileId>(
-        () => (localStorage.getItem('demo-profile') as DemoProfileId) || 'acme'
-    );
+    // Standalone Officeworks demo · only one profile · switcher is a no-op.
+    const activeProfile = DEMO_PROFILES[0];
 
-    useEffect(() => {
-        localStorage.setItem('demo-profile', activeProfileId);
-    }, [activeProfileId]);
-
-    const activeProfile = DEMO_PROFILES.find(p => p.id === activeProfileId) || DEMO_PROFILES[0];
-
-    const switchProfile = (id: DemoProfileId) => {
-        setActiveProfileId(id);
+    const switchProfile = (_id: DemoProfileId) => {
+        // No-op · only Officeworks is registered.
     };
 
     return (

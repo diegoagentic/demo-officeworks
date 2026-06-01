@@ -1,7 +1,7 @@
 {
-  "name": "demo-2026-strata",
+  "name": "demo-officeworks",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

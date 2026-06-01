@@ -27,95 +27,13 @@ import ActionCenter from './notifications/ActionCenter';
 import logoLightBrand from '../assets/logo-light-brand.png';
 import logoDarkBrand from '../assets/logo-dark-brand.png';
 
-// --- Demo Role Profiles ---
+// --- Officeworks demo personas (single profile · standalone demo) ---
 const DEMO_PROFILES: Record<string, { name: string; role: string; photo: string }> = {
     Dealer: {
-        name: 'Sara Chen',
-        role: 'Account Manager',
+        name: 'Officeworks',
+        role: 'Strata AI Demo',
         photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face',
     },
-    Expert: {
-        name: 'David Park',
-        role: 'Regional Sales Manager',
-        photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face',
-    },
-    'End User': {
-        name: 'Carlos Rivera',
-        role: 'Facilities Coordinator',
-        photo: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=80&h=80&fit=crop&crop=face',
-    },
-    'Sales Rep': {
-        name: 'Michelle Torres',
-        role: 'Sales Rep',
-        photo: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=80&h=80&fit=crop&crop=face',
-    },
-    Designer: {
-        name: 'Alex Rivera',
-        role: 'Designer',
-        photo: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=80&h=80&fit=crop&crop=face',
-    },
-    SC: {
-        name: 'Randy Martinez',
-        role: 'Sales Coordinator',
-        photo: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face',
-    },
-    Estimator: {
-        name: 'Mark Williams',
-        role: 'Senior Estimator',
-        photo: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=80&h=80&fit=crop&crop=face',
-    },
-    // Workspaces demo personas
-    Employee: {
-        name: 'John Smith',
-        role: 'Sales Rep',
-        photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face',
-    },
-    'Operations Manager': {
-        name: 'Sarah Johnson',
-        role: 'Operations Manager',
-        photo: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=80&h=80&fit=crop&crop=face',
-    },
-    'AP Coordinator': {
-        name: 'Letza Bombard',
-        role: 'AP Coordinator',
-        photo: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=80&h=80&fit=crop&crop=face',
-    },
-    CFO: {
-        name: 'Mehmet Yildiz',
-        role: 'CFO',
-        photo: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=80&h=80&fit=crop&crop=face',
-    },
-    'BFI Account Manager': {
-        name: 'Lauren D.',
-        role: 'CoNY Account Manager',
-        photo: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=80&h=80&fit=crop&crop=face',
-    },
-    'BFI Manager': {
-        name: 'Michael Boyle',
-        role: 'Director of Strategic Accounts · BFI',
-        photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face',
-    },
-    'BFI Project Manager': {
-        name: 'Walter Goley',
-        role: 'CoNY Project Manager',
-        photo: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=80&h=80&fit=crop&crop=face',
-    },
-    'BFI Finance': {
-        name: 'Patricia Hilger',
-        role: 'Finance / AR',
-        photo: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=80&h=80&fit=crop&crop=face',
-    },
-    'BFI Designer': {
-        name: 'Robert Chen',
-        role: 'Miller Knoll Rep · Designer',
-        photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face',
-    },
-    'BFI Receiving': {
-        name: 'Lena C.',
-        role: 'Receiving Coordinator',
-        photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&h=80&fit=crop&crop=face',
-    },
-    // Officeworks demo personas
     'Officeworks Design Manager': {
         name: 'Felicia Miano-Poles',
         role: 'EVP Design & PM',
@@ -153,9 +71,6 @@ const DEMO_PROFILES: Record<string, { name: string; role: string; photo: string 
     },
 };
 
-// Apps that belong to Expert Hub — everything else is Dealer Experience
-const EXPERT_HUB_APPS = ['expert-hub', 'ack-detail', 'transactions', 'mac', 'quote-detail'];
-
 function resolveProfileKey(role: string | undefined, app: string | undefined): string {
     if (app?.startsWith('bfi-')) {
         if (role === 'Project Manager')      return 'BFI Project Manager';
@@ -171,30 +86,13 @@ function resolveProfileKey(role: string | undefined, app: string | undefined): s
         if (role === 'Sales Coordinator') return 'Officeworks Sales Coordinator';
         if (role === 'Peer Reviewer')     return 'Officeworks Peer Reviewer';
         if (role === 'Sr Operations') {
-            // L&D Sr Operations role splits into Furniture (Alan) / Walls (Paul)
+            // L&D Sr Operations role splits into Furniture / Walls
             // by the active vertical sub-toggle set in the sidebar.
             const v = readVertical();
             return v === 'walls' ? 'Officeworks Head of Ops Walls' : 'Officeworks Sr Operations';
         }
         if (role === 'Sales Lead') return 'Officeworks Sales Lead';
         return 'Officeworks Design Manager';
-    }
-    if (role === 'Expert') return 'Expert';
-    if (role === 'Estimator') return 'Estimator';
-    if (role === 'End User') return 'End User';
-    if (role === 'Sales Rep') return 'Sales Rep';
-    if (role === 'Designer') return 'Designer';
-    if (role === 'SC') return 'SC';
-    if (role === 'Employee') return 'Employee';
-    if (role === 'Operations Manager') return 'Operations Manager';
-    if (role === 'AP Coordinator') return 'AP Coordinator';
-    if (role === 'Accountant') return 'AP Coordinator';
-    if (role === 'CFO') return 'CFO';
-    if (role === 'System') {
-        // System steps inherit the human profile of their parent app
-        if (app === 'crm') return 'Sales Rep';
-        if (app?.startsWith('dupler-')) return 'Expert';
-        return EXPERT_HUB_APPS.includes(app || '') ? 'Expert' : 'Dealer';
     }
     return 'Dealer';
 }
@@ -282,49 +180,13 @@ export default function Navbar({
 
                     <div className="h-6 w-px bg-border mx-1 hidden lg:block"></div>
 
-                    {/* App Name + Company — Demo Profile Selector */}
-                    <Popover className="relative hidden lg:block">
-                        <PopoverButton className="flex flex-col items-start text-left px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer outline-none group">
-                            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider leading-none">{appName || 'Dealer Experience'}</span>
-                            <span className="text-sm font-bold text-foreground leading-tight flex items-center gap-1">
-                                {companyName || activeProfile.companyName}
-                            </span>
-                        </PopoverButton>
-                        <Transition
-                            as={Fragment}
-                            enter="transition ease-out duration-200"
-                            enterFrom="opacity-0 translate-y-1"
-                            enterTo="opacity-100 translate-y-0"
-                            leave="transition ease-in duration-150"
-                            leaveFrom="opacity-100 translate-y-0"
-                            leaveTo="opacity-0 translate-y-1"
-                        >
-                            <PopoverPanel className="absolute left-0 top-full mt-2 w-64 py-2 rounded-xl bg-card/95 backdrop-blur-xl border border-border shadow-2xl z-[200] max-h-[70vh] flex flex-col">
-                                <div className="px-3 py-2 border-b border-border mb-1 shrink-0">
-                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Switch Demo</p>
-                                </div>
-                                <div className="overflow-y-auto flex-1 min-h-0">
-                                    {profiles.map((profile) => (
-                                        <PopoverButton
-                                            as="button"
-                                            key={profile.id}
-                                            onClick={() => switchProfile(profile.id)}
-                                            className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted transition-colors text-left"
-                                        >
-                                            <span className="text-lg shrink-0">{profile.icon}</span>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-semibold text-foreground">{profile.name}</p>
-                                                <p className="text-[11px] text-muted-foreground truncate">{profile.description}</p>
-                                            </div>
-                                            {activeProfile.id === profile.id && (
-                                                <CheckIcon className="w-4 h-4 text-primary shrink-0" />
-                                            )}
-                                        </PopoverButton>
-                                    ))}
-                                </div>
-                            </PopoverPanel>
-                        </Transition>
-                    </Popover>
+                    {/* App Name + Company (static · single profile) */}
+                    <div className="flex flex-col items-start text-left px-2 py-1.5 hidden lg:block">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider leading-none">{appName || 'Strata AI'}</span>
+                        <span className="text-sm font-bold text-foreground leading-tight">
+                            {companyName || activeProfile.companyName}
+                        </span>
+                    </div>
                 </div>
 
 

@@ -18,7 +18,7 @@
 import { Fragment, useState } from 'react'
 import { Dialog, Transition, TransitionChild, DialogPanel } from '@headlessui/react'
 import { AlertTriangle, CheckCircle2, FileText, Send, X } from 'lucide-react'
-import EmailMetadataBlock from '../bfi/EmailMetadataBlock'
+import EmailMetadataBlock from './EmailMetadataBlock'
 
 export interface RequestInfoAttachment {
     name: string

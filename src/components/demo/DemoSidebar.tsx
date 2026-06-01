@@ -27,109 +27,11 @@ const HERO_STEP_IDS = new Set<string>([
     'm2.2',  // MBI · HealthTrust GPO 3% rebate modal — the most interactive AP scene
 ]);
 import { useDemoProfile } from '../../context/useDemoProfile';
-import { WORKSPACES_DATA_THREADS } from '../../config/profiles/workspaces';
 import { useOfficeworksVertical, writeVertical } from '../officeworks/shared/verticalSignal';
 
-// Apps belonging to Expert Hub — System steps in these show as "Expert"
-const EXPERT_HUB_APPS = ['expert-hub', 'ack-detail', 'transactions', 'mac', 'quote-detail'];
-
-function resolveRoleLabel(role: string, app: string, profileId?: string): string {
-    if (role === 'System') {
-        // Continua & Dupler: all System steps are AI processing within Expert context
-        if (profileId === 'continua' || profileId === 'dupler') return 'Expert';
-        return EXPERT_HUB_APPS.includes(app) ? 'Expert' : 'Dealer';
-    }
+function resolveRoleLabel(role: string, _app: string): string {
+    // Officeworks-only · all roles are passed through as-is.
     return role;
-}
-
-// Data threads — mini-summaries for completed steps, keyed by profile ID
-const DATA_THREADS_BY_PROFILE: Record<string, Record<string, string>> = {
-    continua: {
-        '1.1': 'Health score 87% — 3 alerts',
-        '1.2': '12 items cataloged for reuse',
-        '1.3': 'Price verified — $110K savings',
-        '1.4': '4 locations synced',
-        '1.5': '4 RMA, 4 convert-to-purchase',
-        '1.6': 'Report approved — all changes confirmed',
-        '3.1': 'Project request submitted — $3.2M, 8 floors',
-        '3.2': '3 POs generated, $3.2M',
-        '3.3': 'PO-to-ACK conversion verified',
-        '3.4': 'Approval chain completed — 3/3 approved',
-        '3.5': 'QC passed — 1,320 items received',
-        '3.6': 'Installation dispatched — 8 floors',
-        '2.1': 'REQ-FM-2026-018 — safety flag',
-        '2.2': 'Warranty + consignment + relocation plan',
-        '2.3': 'Dispatch approved — ProInstall tomorrow',
-        '2.4': 'Assets relocated to Office 3-216',
-        '2.5': 'Resolved — $0 cost, 26h total',
-        '4.1': '194 tons diverted, A- rating',
-        '4.2': 'Portal published — 82% progress',
-        '4.3': '$11,550 reconciled',
-        '4.4': '92% satisfaction, AV flagged',
-    },
-    dupler: {
-        'd1.1': 'Gap detected — vendor PDF imported, products extracted and mapped',
-        'd1.2': 'Flagged items resolved — AI suggestions and specialist review',
-        'd1.3': 'PMX specification assembled — sent to SC, catalog synchronized',
-        'd1.4': 'Upcharges validated — discounts applied by SC',
-        'd1.5': 'Priced SIF generated — synchronized and sent for approval',
-        'd2.1': 'Warehouse scanned — aging items flagged, moves recommended',
-        'd2.2': 'Items received — exceptions flagged and assessed',
-        'd2.3': 'Prices verified — margin alerts reviewed',
-        'd2.4': 'Warehouses synced — routes optimized',
-        'd2.5': 'Shipments tracked — delays predicted, freight audited',
-        'd2.6': 'Claims processed — credits and warranties reviewed',
-        'd2.7': 'Dealer approved — dispatch scheduled',
-        'd3.1': 'All systems connected — inventory health scored',
-        'd3.2': 'Updates verified and propagated — metrics configured',
-        'd3.3': 'Report assembled — previewed and sent to team',
-        'd3.4': 'Report reviewed — client portal live',
-    },
-    wrg: {
-        'w1.1': 'Client request received — attachments identified',
-        'w1.2': 'Mismatches found — flagged items sent to designer',
-        'w1.3': 'Designer reviewed fields — corrections submitted',
-        'w1.4': 'Project registered — expert assigned',
-        'w1.5': 'Intake approved — estimation phase authorized',
-        'w2.1': '24 items costed — 5 flagged, OFS Serpentine escalated to designer',
-        'w2.2': '5 modules validated — verification report sent to expert',
-        'w2.3': 'All adjustments resolved — proposal assembled ($202,138)',
-        'w2.4': 'Proposal approved and released to client — 92% time saved',
-    },
-    workspaces: WORKSPACES_DATA_THREADS,
-    bfi: {
-        'a1.1':  'DOE-2847 flagged · CPR discrepancy detected',
-        'a1.2':  'SIF corrected · 1 price adjusted · discount calculated',
-        'a1.2b': 'Order Q-2026-0089 confirmed · Robert Chen acknowledged',
-        'a1.2c': 'PO + labor captured · CORE entry confirmed · EDI transmitted',
-        'a1.2d': 'Proposal sent to DOE · WIG report received · packing list ready for AI',
-        'a1.2e': 'Lena notified Lauren · carton #34 (M-ARM) missing · claim filed with Herman Miller',
-        'a1.2f': 'Claim resolved · HM confirmed replacement · Walter notified · work order cleared',
-        'a1.3':  'CPR approved · −$2,340 applied · relayed to Nancy Bos',
-        'a1.4':  'Agency fee verified · $41,040 match confirmed',
-        'r1.2':  'WIG report received · packing list ready for AI',
-        'r1.3':  'Carton #34 missing · 1 discrepancy in 10 seconds',
-        'r1.4':  'Andy notified · Omni claim #OM-2026-0412 filed',
-        'r1.5':  '34/35 confirmed in CORE · Line 24 excluded',
-        'r1.6':  'Walter notified · crew scheduling initiated',
-    },
-    leland: {
-        'l0.1': 'Inbox set · the manual baseline',
-        'l1.1': 'PO captured · ready for the next check',
-        'l1.2': 'Matching quote found',
-        'l1.3': 'Price difference caught · sent for review',
-        'l1.4': 'Reviewer approved · Strata resumes',
-        'l1.5': 'Customer · materials · configuration validated',
-        'l1.6': 'Sales order built',
-        'l1.7': 'Comments · metadata · rebate applied',
-        'l1.8': 'Order logged · ticket closed',
-        'l2.1': 'One catch · meaningful annual savings',
-    },
-};
-
-function getStepDataThread(stepId: string, profileId: string): string | null {
-    const threads = DATA_THREADS_BY_PROFILE[profileId];
-    return threads?.[stepId] || null;
 }
 
 export default function DemoSidebar() {
@@ -137,11 +39,8 @@ export default function DemoSidebar() {
     const { activeProfile } = useDemoProfile();
     const { theme } = useTheme();
     const STEP_BEHAVIOR = activeProfile.stepBehavior;
-    const isContinua = activeProfile.id === 'continua';
-    const isDupler = activeProfile.id === 'dupler';
-    const isWRG = activeProfile.id === 'wrg';
-    const isLeland = activeProfile.id === 'leland';
-    const isOfficeworks = activeProfile.id === 'officeworks';
+    // Officeworks-only standalone demo · activeProfile is always 'officeworks'.
+    const isOfficeworks = true;
 
     // Officeworks runs three flows in parallel (Spec Check & Design ·
     // Labor & Delivery · Sales). Tab toggle filters the sidebar to one flow.
@@ -192,9 +91,7 @@ export default function DemoSidebar() {
         const firstIdx = steps.findIndex(s => (s.flowId ?? 'spec-check') === flow);
         if (firstIdx >= 0) goToStep(firstIdx);
     };
-    const isWorkspaces = activeProfile.id === 'workspaces';
-    const isBFI = activeProfile.id === 'bfi';
-    const hasDataThreads = isContinua || isDupler || isWRG || isLeland || isWorkspaces || isBFI;
+    const hasDataThreads = false;
 
     // Invert: when app is dark → sidebar is light, when app is light → sidebar is dark
     const isDarkSidebar = theme === 'light';
@@ -505,7 +402,7 @@ export default function DemoSidebar() {
                                             STEP {displayNumber}
                                         </span>
                                         {(() => {
-                                            const label = resolveRoleLabel(step.role, step.app, activeProfile.id);
+                                            const label = resolveRoleLabel(step.role, step.app);
                                             return (
                                                 <span className={`text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-sm border ${label === 'Facility Manager' ? c.fmBadge : label === 'Facility User' ? c.fuBadge : label === 'Dealer' ? c.dealerBadge : label === 'End User' ? c.endUserBadge : label === 'Sales Coordinator' ? c.scBadge : label === 'Estimator' ? c.estimatorBadge : label === 'Designer' ? c.designerBadge : label === 'Employee' ? c.employeeBadge : label === 'Operations Manager' ? c.opsMgrBadge : label === 'AP Coordinator' ? c.apCoordBadge : label === 'CFO' ? c.cfoBadge : label === 'Account Manager' ? c.accountLeadBadge : label === 'Project Manager' ? c.projectMgrBadge : label === 'Finance / AR' ? c.financeArBadge : label === 'System' ? c.expertBadge : c.expertBadge}`}>
                                                     {label === 'Facility Manager' ? 'FACILITY MANAGER' : label === 'Facility User' ? 'FACILITY USER' : label}
@@ -540,9 +437,10 @@ export default function DemoSidebar() {
                                             {step.description}
                                         </p>
                                     )}
-                                    {isCompleted && hasDataThreads && getStepDataThread(step.id, activeProfile.id) && (
+                                    {/* Officeworks demo has no data threads · block intentionally omitted */}
+                                    {isCompleted && hasDataThreads && (
                                         <p className={`text-[8px] italic ${c.textDim} leading-tight`}>
-                                            → {getStepDataThread(step.id, activeProfile.id)}
+                                            {/* never rendered */}
                                         </p>
                                     )}
                                 </div>

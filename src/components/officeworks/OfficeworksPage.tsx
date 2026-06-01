@@ -14,7 +14,7 @@
 
 import { useEffect, useState } from 'react'
 import { Pencil, LayoutDashboard, ClipboardCheck, Send, Inbox, Truck } from 'lucide-react'
-import MBIPageShell from '../mbi/MBIPageShell'
+import PageShell from '../shared/PageShell'
 import { useDemo } from '../../context/DemoContext'
 
 import OfficeworksFunnel from './OfficeworksFunnel'
@@ -182,7 +182,7 @@ export default function OfficeworksPage() {
     }
 
     return (
-        <MBIPageShell
+        <PageShell
             title={pageTitle}
             tenantLabel="Officeworks"
             productLabel="Strata for Officeworks"
@@ -215,7 +215,7 @@ export default function OfficeworksPage() {
                 winnerVendorId={winnerVendorId}
                 onSelectWinner={setWinnerVendorId}
             />
-        </MBIPageShell>
+        </PageShell>
     )
 }
 
@@ -223,7 +223,7 @@ export default function OfficeworksPage() {
 
 export function OfficeworksDashboardPage() {
     return (
-        <MBIPageShell
+        <PageShell
             title="Design Dashboard"
             tenantLabel="Officeworks"
             productLabel="Strata for Officeworks"
@@ -232,6 +232,6 @@ export function OfficeworksDashboardPage() {
             <div className="animate-in fade-in duration-500">
                 <OfficeworksDashboardScene />
             </div>
-        </MBIPageShell>
+        </PageShell>
     )
 }

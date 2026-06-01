@@ -1,31 +1,24 @@
 /**
- * COMPONENT: MBIPageShell
- * PURPOSE: Shared shell for the 5 MBI demo pages — provides consistent layout,
- *          header, breadcrumbs and tenant context. All MBI pages compose this.
+ * COMPONENT: PageShell
+ * PURPOSE: Generic page shell — consistent header (tenant + product
+ *          breadcrumb), title row, optional preHeader slot, body.
  *
  * PROPS:
- *   - title: string                 — page title (e.g. "Budget Builder")
+ *   - title: string                 — page title
  *   - subtitle?: string             — optional 1-line description
  *   - icon?: ReactNode              — optional Lucide icon for the title
  *   - actions?: ReactNode           — optional right-aligned actions (CTAs)
- *   - children: ReactNode           — page body
+ *   - preHeader?: ReactNode         — slot rendered above the title row
+ *   - tenantLabel: string           — tenant short name (e.g. "Officeworks")
+ *   - productLabel: string          — product label (e.g. "Strata for Officeworks")
  *
- * STATES:
- *   - default — shell renders with header + body
- *
- * DS TOKENS USED:
- *   - bg-background · text-foreground · text-muted-foreground
- *   - border-border · max-w-7xl · pt-24 px-4
- *
- * USED BY: MBIOverviewPage, MBIBudgetPage, MBIAccountingPage,
- *          MBIQuotesPage, MBIDesignPage
+ * DS TOKENS: bg-background · text-foreground · text-muted-foreground · border-border
  */
 
 import type { ReactNode } from 'react'
-import { MBI_TENANT } from '../../config/profiles/mbi-data'
 import { useDemo } from '../../context/DemoContext'
 
-interface MBIPageShellProps {
+interface PageShellProps {
     title: string
     subtitle?: string
     icon?: ReactNode
@@ -34,14 +27,12 @@ interface MBIPageShellProps {
     activeApp?: string
     /** Optional slot rendered above the title row — used for tab switchers etc. */
     preHeader?: ReactNode
-    /** Override the tenant badge (defaults to MBI_TENANT.short) */
-    tenantLabel?: string
-    /** Override the "Strata for X" label (defaults to "Strata for MBI") */
-    productLabel?: string
+    tenantLabel: string
+    productLabel: string
     children: ReactNode
 }
 
-export default function MBIPageShell({ title, subtitle, icon, actions, preHeader, tenantLabel, productLabel, children }: MBIPageShellProps) {
+export default function PageShell({ title, subtitle, icon, actions, preHeader, tenantLabel, productLabel, children }: PageShellProps) {
     const { isSidebarCollapsed, isDemoActive } = useDemo()
     const maxW = isDemoActive && !isSidebarCollapsed ? 'max-w-5xl' : 'max-w-7xl'
     return (
@@ -58,9 +49,9 @@ export default function MBIPageShell({ title, subtitle, icon, actions, preHeader
                         )}
                         <div>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <span className="font-medium uppercase tracking-wider">{tenantLabel ?? MBI_TENANT.short}</span>
+                                <span className="font-medium uppercase tracking-wider">{tenantLabel}</span>
                                 <span>·</span>
-                                <span>{productLabel ?? 'Strata for MBI'}</span>
+                                <span>{productLabel}</span>
                             </div>
                             <h1 className="text-2xl font-bold text-foreground leading-tight">{title}</h1>
                             {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}

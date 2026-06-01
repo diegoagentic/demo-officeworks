@@ -181,7 +181,7 @@ export default function Navbar({
                     <div className="h-6 w-px bg-border mx-1 hidden lg:block"></div>
 
                     {/* App Name + Company (static · single profile) */}
-                    <div className="flex flex-col items-start text-left px-2 py-1.5 hidden lg:block">
+                    <div className="hidden lg:flex flex-col items-start text-left px-2 py-1.5">
                         <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider leading-none">{appName || 'Strata AI'}</span>
                         <span className="text-sm font-bold text-foreground leading-tight">
                             {companyName || activeProfile.companyName}

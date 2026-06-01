@@ -120,7 +120,7 @@ function App() {
           onOpenDemoGuide={() => setIsDemoGuideOpen(true)}
           activeTab={activeTab}
           onNavigate={handleNavigate}
-          appName={isDemoActive ? officeworksAppName : undefined}
+          appName={isDemoActive ? officeworksAppName : 'Strata AI'}
           companyName={demoProfile.companyName}
           customNavigation={officeworksNav}
         />

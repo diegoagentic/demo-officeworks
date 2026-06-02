@@ -13,8 +13,8 @@
  *            bg-primary/10 · bg-success/10 · text-foreground · text-muted-foreground
  */
 
-import { useEffect, useState } from 'react'
-import { Search, LayoutGrid, MoreHorizontal, Users, Truck } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Search, LayoutGrid, MoreHorizontal, Users, Truck, Mail } from 'lucide-react'
 import { useDemo } from '../../context/DemoContext'
 import { MANATT_ORDER_META } from './shared/manattOrderData'
 import { stepIdToColIdx } from './shared/funnelStages'
@@ -23,8 +23,9 @@ import {
     LD_CONTEXT_PROJECTS, MANATT_LD_BADGE, MANATT_LD_BADGE_BY_STEP,
     MANATT_LD_SUBTITLE, MANATT_LD_SUBTITLE_BY_STEP,
 } from './shared/manattLaborData'
-import { SALES_ACTOR, SALES_OPPORTUNITIES, SALES_VOLUME_FACTS } from './shared/manattSalesData'
+import { SALES_ACTOR, SALES_OPPORTUNITIES, SALES_VOLUME_FACTS, SALES_INBOX_THREADS } from './shared/manattSalesData'
 import { useOfficeworksVertical } from './shared/verticalSignal'
+import { useIntakenThreads, resetIntakenThreads, writeSelectedThread, writeShowNewArrival, MANATT_THREAD_ID } from './shared/salesInboxSignal'
 import CapacityModal from './CapacityModal'
 
 // ─── Funnel columns · per flow ────────────────────────────────────────────────
@@ -192,8 +193,8 @@ const HEADER_BY_FLOW = {
     'sales': {
         title: 'Sales · Pipeline',
         sub: `${SALES_ACTOR.role} · ${SALES_ACTOR.territoryLabel} · ${SALES_ACTOR.personaSubLine}`,
-        capacityLabel: 'View capacity',
-        capacityCount: '5 reps · Mid-Atlantic',
+        capacityLabel: 'View inbox',
+        capacityCount: `${SALES_INBOX_THREADS.length} threads`,
     },
 } as const
 
@@ -245,6 +246,7 @@ interface Props {
 export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false, assignedDesigner, flowId = 'spec-check' }: Props) {
     const { currentStep } = useDemo()
     const [capacityOpen, setCapacityOpen] = useState(false)
+    const intakenThreads = useIntakenThreads()
     const isLD = flowId === 'labor-delivery'
     const isSales = flowId === 'sales'
     const vertical = useOfficeworksVertical()
@@ -287,7 +289,49 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
         }
     }, [currentStep?.id, firstStepId, ingestEvent])
 
-    const manattVisible = currentStep?.id !== firstStepId || manattIngested
+    // Sales · the MANATT card enters the funnel only when its email is picked
+    // from the inbox (intake). Other flows keep the ingest-animation gate.
+    const manattVisible = isSales
+        ? intakenThreads.includes(MANATT_THREAD_ID)
+        : (currentStep?.id !== firstStepId || manattIngested)
+
+    // Stable ref so the inbox-ingest useEffect below doesn't re-fire (and reset
+    // the demo state) every time onOpenReview changes reference · without this,
+    // each parent re-render would reset writeShowNewArrival(false) right after
+    // the notification CTA flipped it to true, killing the MANATT highlight.
+    const onOpenReviewRef = useRef(onOpenReview)
+    useEffect(() => { onOpenReviewRef.current = onOpenReview }, [onOpenReview])
+
+    // Sales flow-1 · do NOT auto-open the Review modal · wait for the
+    // notification CTA ('officeworks:sales-inbox-ingest' event dispatched by
+    // ActionCenter when the Sales Lead clicks "Triage inbox →"). When fired,
+    // pre-select MANATT and mark it as new arrival so the right-panel feed
+    // highlights it · then open the Review modal directly (no intermediate
+    // standalone inbox modal).
+    useEffect(() => {
+        if (!isSales || currentStep?.id !== 'sc-S.0') return
+        // Reset the demo state on entry · allows replaying the triage simulation
+        // multiple times (different audiences, F5 reloads, navigation back).
+        resetIntakenThreads()
+        writeSelectedThread(null)
+        writeShowNewArrival(false)
+        const open = () => {
+            // Notification path · pre-select MANATT + mark as new arrival.
+            writeSelectedThread(MANATT_THREAD_ID)
+            writeShowNewArrival(true)
+            onOpenReviewRef.current()
+        }
+        window.addEventListener('officeworks:sales-inbox-ingest', open)
+        return () => window.removeEventListener('officeworks:sales-inbox-ingest', open)
+    }, [isSales, currentStep?.id])
+
+    // Non-MANATT emails added to the funnel · rendered as Triage pipeline cards.
+    const intakenContextThreads = isSales
+        ? intakenThreads
+            .filter(id => id !== MANATT_THREAD_ID)
+            .map(id => SALES_INBOX_THREADS.find(t => t.id === id))
+            .filter((t): t is NonNullable<typeof t> => Boolean(t))
+        : []
 
     return (
         <div className="bg-card border border-border rounded-2xl">
@@ -302,11 +346,21 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
                 <div className="flex items-center gap-2">
                     <button
                         type="button"
-                        onClick={() => setCapacityOpen(true)}
+                        onClick={() => {
+                            if (isSales) {
+                                // View inbox path · clean entry · no NEW highlight.
+                                resetIntakenThreads()
+                                writeSelectedThread(null)
+                                writeShowNewArrival(false)
+                                onOpenReview()
+                            } else {
+                                setCapacityOpen(true)
+                            }
+                        }}
                         className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border text-xs text-foreground hover:bg-muted/50 transition-colors"
-                        title={isSales ? 'Sales rep capacity · pipeline load + quota progress · live from Copper events' : isLD ? 'Approved installer pool · per market · MSA-locked' : 'Designer capacity · weekly committed/available hours · refreshed nightly'}
+                        title={isSales ? 'Unified inbox · multi-channel triage · classified + deduped by Strata' : isLD ? 'Approved installer pool · per market · MSA-locked' : 'Designer capacity · weekly committed/available hours · refreshed nightly'}
                     >
-                        {isLD && !isSales ? <Truck className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
+                        {isSales ? <Mail className="h-3.5 w-3.5" /> : isLD ? <Truck className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
                         {header.capacityLabel}
                         <span className="text-[10px] text-muted-foreground font-normal">· {header.capacityCount}</span>
                     </button>
@@ -334,7 +388,8 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
                     {PROCESS_COLUMNS.map((c, colIdx) => {
                         const isManattCol = colIdx === activeCol && manattVisible
                         const colCards = CONTEXT_CARDS.filter(card => card.colIdx === colIdx)
-                        const count = (isManattCol ? 1 : 0) + colCards.length
+                        const colIntaken = (isSales && colIdx === 0) ? intakenContextThreads : []
+                        const count = (isManattCol ? 1 : 0) + colCards.length + colIntaken.length
 
                         return (
                             <div key={c.id} className="space-y-3 min-h-[200px]">
@@ -443,6 +498,33 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
                                     </div>
                                 ))}
 
+                                {/* Intaken from inbox · non-MANATT pipeline cards (Sales) */}
+                                {colIntaken.map(t => (
+                                    <div
+                                        key={t.id}
+                                        className="rounded-2xl border border-border bg-card p-3.5 space-y-2.5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-500"
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="h-8 w-8 rounded-full bg-ai/15 flex items-center justify-center shrink-0 ring-2 ring-white dark:ring-zinc-900">
+                                                <span className="text-[10px] font-black text-ai">{t.fromOrg.slice(0, 3).toUpperCase()}</span>
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="text-sm font-semibold text-foreground truncate">{t.fromOrg}</div>
+                                                <div className="text-[10px] text-muted-foreground truncate">{t.from}</div>
+                                            </div>
+                                            {t.intent === 'urgent' && (
+                                                <span className="text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 bg-destructive/10 text-destructive border border-destructive/20 shrink-0">Urgent</span>
+                                            )}
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">{t.subject}</p>
+                                        <div className="h-px bg-border" />
+                                        <div className="flex items-center justify-between text-[11px]">
+                                            <span className="text-muted-foreground truncate">Triaged from inbox</span>
+                                            <span className="font-semibold text-ai tabular-nums">intent {t.intentScore}</span>
+                                        </div>
+                                    </div>
+                                ))}
+
                                 {/* Empty state */}
                                 {count === 0 && (
                                     <div className="border-2 border-dashed border-border rounded-xl p-5 text-center">
@@ -461,6 +543,10 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
                 primary focus. Designer assignment still happens with the embedded
                 CapacityHeatmap inside IntakeAssignPanel of the Review modal. */}
             <CapacityModal isOpen={capacityOpen} onClose={() => setCapacityOpen(false)} />
+
+            {/* Sales · unified inbox lives inside the Review modal (right panel).
+                Notification CTA and "View inbox" button both open the Review modal
+                directly · no standalone inbox modal needed. */}
         </div>
     )
 }

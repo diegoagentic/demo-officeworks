@@ -15,7 +15,7 @@ import DemoAIIndicator from "./components/demo/DemoAIIndicator"
 import StrataArchitectureSlide from "./components/demo/StrataArchitectureSlide"
 
 import OfficeworksPage, { OfficeworksDashboardPage } from "./components/officeworks/OfficeworksPage"
-import { LayoutDashboard as LayoutDashboardIcon, Inbox as InboxIcon, Pencil as PencilIcon, ClipboardCheck as ClipboardCheckIcon, Send as SendIcon } from 'lucide-react'
+import { LayoutDashboard as LayoutDashboardIcon, Inbox as InboxIcon, Pencil as PencilIcon, ClipboardCheck as ClipboardCheckIcon, Mail as MailIcon } from 'lucide-react'
 
 import logoLightBrand from './assets/logo-light-brand.png'
 import logoDarkBrand from './assets/logo-dark-brand.png'
@@ -84,7 +84,7 @@ function App() {
     { name: 'Intake AI',     page: 'officeworks-intake',     icon: InboxIcon },
     { name: 'Design AI',     page: 'officeworks-design',     icon: PencilIcon },
     { name: 'Spec Check AI', page: 'officeworks-spec-check', icon: ClipboardCheckIcon },
-    { name: 'Submission AI', page: 'officeworks-submission', icon: SendIcon },
+    { name: 'Sales AI',      page: 'officeworks-sales',      icon: MailIcon },
   ]
 
   const appToTab: Record<string, string> = {

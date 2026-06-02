@@ -18,7 +18,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import { Dialog, Transition, TransitionChild, DialogPanel } from '@headlessui/react'
-import { X, Sparkles, FileText, MapPin, ClipboardCheck, ArrowRight, AlertCircle, CheckCircle2, FileWarning, Image as ImageIcon, Eye, UserCheck, Users, Paperclip, Mail, Loader2, HelpCircle, ShieldCheck, Search, AlertTriangle, DollarSign, Send, Calendar, Layers, Pencil, Inbox, Building2, Truck, ChevronDown, ChevronRight as ChevronRightIcon, Save, Edit3, Target, TrendingUp, MessageSquare, Smartphone, ExternalLink, Activity, Clock, Briefcase, Award } from 'lucide-react'
+import { X, Sparkles, FileText, MapPin, ClipboardCheck, ArrowRight, AlertCircle, CheckCircle2, FileWarning, Image as ImageIcon, Eye, UserCheck, Users, Paperclip, Mail, Loader2, HelpCircle, ShieldCheck, Search, AlertTriangle, DollarSign, Send, Calendar, Layers, Pencil, Inbox, Building2, Truck, ChevronDown, ChevronRight as ChevronRightIcon, Save, Edit3, Target, TrendingUp, MessageSquare, Smartphone, ExternalLink, Activity, Clock, Briefcase, Award, Check } from 'lucide-react'
 import { useDemo } from '../../context/DemoContext'
 import { MANATT_ORDER_META } from './shared/manattOrderData'
 import {
@@ -41,6 +41,7 @@ import {
     type SalesInboxThread, type SalesRep,
 } from './shared/manattSalesData'
 import { useOfficeworksVertical } from './shared/verticalSignal'
+import { useSelectedThread, writeSelectedThread, useIntakenThreads, addIntakenThread, useShowNewArrival, MANATT_THREAD_ID } from './shared/salesInboxSignal'
 import { OFFICEWORKS_FUNNEL } from './shared/funnelStages'
 import CapacityHeatmap from './shared/CapacityHeatmap'
 import BlueprintFloorPlan from './shared/BlueprintFloorPlan'
@@ -238,7 +239,7 @@ const STAGE_TABS: Partial<Record<OfficeworksReviewStage, DocTab[]>> = {
     'ld-winner-select':  ['ld-scorecard', 'ld-notifications'],
     'ld-final-upload':   ['ld-excel-quote', 'ld-portal-status'],
     // ─── Sales flow tabs per stage ──────────────────────────────────────────
-    'sales-inbox':       ['sales-inbox-feed', 'sales-thread-detail'],
+    'sales-inbox':       ['sales-thread-detail'],
     'sales-intake':      ['sales-opp-record', 'sales-thread-detail'],
     'sales-capacity':    ['sales-capacity-ledger', 'sales-opp-record'],
     'sales-assign':      ['sales-assignment', 'sales-capacity-ledger'],
@@ -280,7 +281,7 @@ const DEFAULT_DOC: Record<OfficeworksReviewStage, DocTab> = {
     'ld-winner-select':  'ld-scorecard',
     'ld-final-upload':   'ld-excel-quote',
     // Sales stages · each opens at its primary document tab.
-    'sales-inbox':       'sales-inbox-feed',
+    'sales-inbox':       'sales-thread-detail',
     'sales-intake':      'sales-opp-record',
     'sales-capacity':    'sales-capacity-ledger',
     'sales-assign':      'sales-assignment',
@@ -516,17 +517,28 @@ export default function OfficeworksDocumentReviewModal({
 function DefaultDocTabs({ stage, flowProgress }: { stage: OfficeworksReviewStage; flowProgress: FlowProgress }) {
     const baseTabIds = STAGE_TABS[stage] ?? DEFAULT_TAB_SET
     const visibleTabIds: DocTab[] = [...baseTabIds]
+    // Sales-* stages render only their stage-specific tabs · the dynamic
+    // BOM / Validation Doc tabs belong to the Spec Check flow and would leak
+    // here once the user has navigated through sc1.2 in the same session.
+    const isSalesStage = stage.startsWith('sales-')
     // Dynamic tabs · appear once their artifact exists.
-    if (flowProgress.bomUploaded && !visibleTabIds.includes('bom')) visibleTabIds.push('bom')
-    if ((flowProgress.validationStarted || flowProgress.validationCompiled) && !visibleTabIds.includes('validation')) visibleTabIds.push('validation')
+    if (!isSalesStage && flowProgress.bomUploaded && !visibleTabIds.includes('bom')) visibleTabIds.push('bom')
+    if (!isSalesStage && (flowProgress.validationStarted || flowProgress.validationCompiled) && !visibleTabIds.includes('validation')) visibleTabIds.push('validation')
     const visibleTabs = DOC_TABS.filter(t => visibleTabIds.includes(t.id))
     const [activeTab, setActiveTab] = useState<DocTab>(DEFAULT_DOC[stage])
 
-    // Auto-surface the BOM tab the moment the upload completes (bomUploaded → true).
-    // Deterministic: fires on the same render the 'bom' tab becomes visible.
+    // Reset activeTab when stage changes · otherwise navigating from sc1.2
+    // (which sets activeTab='bom') to sc-S.0 leaves the BOM preview visible
+    // even though the tab bar no longer shows BOM.
     useEffect(() => {
-        if (flowProgress.bomUploaded) setActiveTab('bom')
-    }, [flowProgress.bomUploaded])
+        setActiveTab(DEFAULT_DOC[stage])
+    }, [stage])
+
+    // Auto-surface the BOM tab the moment the upload completes (bomUploaded → true).
+    // Only relevant in Spec Check flow · sales-* stages don't have a BOM tab.
+    useEffect(() => {
+        if (flowProgress.bomUploaded && !isSalesStage) setActiveTab('bom')
+    }, [flowProgress.bomUploaded, isSalesStage])
 
     // "View in BOM" / "View floor plan" links anywhere in the modal surface their tab.
     useEffect(() => {
@@ -545,7 +557,10 @@ function DefaultDocTabs({ stage, flowProgress }: { stage: OfficeworksReviewStage
 
     return (
         <>
-            {/* Tab bar */}
+            {/* Tab bar · hidden when only 1 tab is visible (e.g. sc-S.0 only
+                shows Thread Detail · the tab label would just look like a
+                repeated title above the content). */}
+            {visibleTabs.length > 1 && (
             <div className="flex items-center gap-0 border-b border-border bg-muted/30 shrink-0 px-4 pt-2 overflow-x-auto">
                 {visibleTabs.map(tab => {
                     const isDynamic = (tab.id === 'bom' && flowProgress.bomUploaded)
@@ -574,6 +589,7 @@ function DefaultDocTabs({ stage, flowProgress }: { stage: OfficeworksReviewStage
                     )
                 })}
             </div>
+            )}
 
             {/* Tab content */}
             <div className="flex-1 min-h-0">
@@ -5915,6 +5931,9 @@ function SalesStickyCTA({ label, onClick, disabled, secondaryNote }: {
 // ─── sc-S.0 · Unified Inbox Triage ──────────────────────────────────────────
 function SalesInboxTriagePanel({ onValidate }: LDPanelProps) {
     const [filter, setFilter] = useState<'all' | 'urgent' | 'action' | 'fyi'>('all')
+    // Notification path → MANATT highlighted as "NEW · just arrived".
+    // View inbox path  → no card highlighted (clean inbox exploration).
+    const showNewArrival = useShowNewArrival()
     const counts = useMemo(() => {
         const c = { all: SALES_INBOX_THREADS.length, urgent: 0, action: 0, fyi: 0 }
         for (const t of SALES_INBOX_THREADS) {
@@ -5928,52 +5947,80 @@ function SalesInboxTriagePanel({ onValidate }: LDPanelProps) {
         filter === 'all' ? SALES_INBOX_THREADS : SALES_INBOX_THREADS.filter(t => t.intent === filter),
     [filter])
 
+    // Review (per-card): update the left-panel Thread Detail with this thread.
+    const handleReview = (threadId: string) => {
+        writeSelectedThread(threadId)
+    }
+    // Intake (per-card): mark the thread as added to the pipeline.
+    // The demo advances on MANATT-4F · other threads just join the pipeline
+    // as visual confirmation that Strata can intake any of them.
+    const handleIntake = (threadId: string) => {
+        addIntakenThread(threadId)
+        if (threadId === MANATT_THREAD_ID) {
+            onValidate()
+        }
+    }
+
     return (
-        <>
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
-                <SalesPanelHero
-                    stage="sales-inbox"
-                    title="Unified inbox triage · multi-channel feed"
-                    subtitle={`${SALES_VOLUME_FACTS.inboundEmailsPerDayPerRep} emails/day per rep · cross-channel today is 3 inboxes in parallel`}
-                />
-
-                <div className="flex items-center gap-1 p-0.5 rounded-md bg-muted/30 text-[11px]">
-                    {([
-                        { id: 'all'    as const, label: 'All',     n: counts.all },
-                        { id: 'urgent' as const, label: 'Urgent',  n: counts.urgent },
-                        { id: 'action' as const, label: 'Action',  n: counts.action },
-                        { id: 'fyi'    as const, label: 'FYI',     n: counts.fyi },
-                    ]).map(f => (
-                        <button
-                            key={f.id}
-                            type="button"
-                            onClick={() => setFilter(f.id)}
-                            className={`flex-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                                filter === f.id
-                                    ? 'bg-card text-foreground shadow-sm'
-                                    : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                        >
-                            {f.label} <span className="tabular-nums opacity-70">{f.n}</span>
-                        </button>
-                    ))}
-                </div>
-
-                <UnifiedInboxFeed threads={filtered} />
-
-                <SalesSourceCite source="Notion AS-IS §8 · 150–200 emails/day · S9 multi-channel ~52:00 (Karen)" />
-            </div>
-            <SalesStickyCTA
-                label="Triage complete · proceed to intake"
-                onClick={onValidate}
-                secondaryNote="Strata classified · deduped · scored. Sales Lead resolves the queue · no auto-action."
+        <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+            <SalesPanelHero
+                stage="sales-inbox"
+                title="Unified inbox triage · multi-channel feed"
+                subtitle={`${SALES_VOLUME_FACTS.inboundEmailsPerDayPerRep} emails/day per rep · cross-channel today is 3 inboxes in parallel`}
             />
-        </>
+
+            <div className="flex items-center gap-1 p-0.5 rounded-md bg-muted/30 text-[11px]">
+                {([
+                    { id: 'all'    as const, label: 'All',     n: counts.all },
+                    { id: 'urgent' as const, label: 'Urgent',  n: counts.urgent },
+                    { id: 'action' as const, label: 'Action',  n: counts.action },
+                    { id: 'fyi'    as const, label: 'FYI',     n: counts.fyi },
+                ]).map(f => (
+                    <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setFilter(f.id)}
+                        className={`flex-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                            filter === f.id
+                                ? 'bg-card text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                    >
+                        {f.label} <span className="tabular-nums opacity-70">{f.n}</span>
+                    </button>
+                ))}
+            </div>
+
+            <UnifiedInboxFeed
+                threads={filtered}
+                onReview={handleReview}
+                onIntake={handleIntake}
+                newArrivalThreadId={showNewArrival ? MANATT_THREAD_ID : undefined}
+            />
+
+            <SalesSourceCite source="Notion AS-IS §8 · 150–200 emails/day · S9 multi-channel ~52:00 (Karen)" />
+        </div>
     )
 }
 
 // ─── New component · UnifiedInboxFeed ───────────────────────────────────────
-function UnifiedInboxFeed({ threads }: { threads: SalesInboxThread[] }) {
+function UnifiedInboxFeed({
+    threads,
+    onReview,
+    onIntake,
+    newArrivalThreadId,
+}: {
+    threads: SalesInboxThread[]
+    onReview?: (threadId: string) => void
+    onIntake?: (threadId: string) => void
+    newArrivalThreadId?: string
+}) {
+    const focusedId = useSelectedThread()
+    const intakenIds = useIntakenThreads()
+    // Local processing state · simulates Strata's intake processing for ~800ms
+    // before the thread joins the pipeline (visual feedback that something is
+    // happening · vs an instant state change).
+    const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
     const dedupeGroups = useMemo(() => {
         const seen = new Map<string, number>()
         threads.forEach(t => {
@@ -5983,13 +6030,40 @@ function UnifiedInboxFeed({ threads }: { threads: SalesInboxThread[] }) {
         return seen
     }, [threads])
 
+    const handleIntakeClick = (threadId: string) => {
+        if (processingIds.has(threadId) || intakenIds.includes(threadId)) return
+        setProcessingIds(prev => new Set(prev).add(threadId))
+        // 800ms feels like "Strata is doing something" without being annoying.
+        window.setTimeout(() => {
+            onIntake?.(threadId)
+            setProcessingIds(prev => {
+                const next = new Set(prev)
+                next.delete(threadId)
+                return next
+            })
+        }, 800)
+    }
+
     return (
         <div className="space-y-2">
             {threads.map(t => {
                 const dupCount = t.dedupGroupId ? dedupeGroups.get(t.dedupGroupId) ?? 1 : 1
                 const isDup = dupCount > 1
+                const isNew = t.id === newArrivalThreadId
+                const isFocused = t.id === focusedId
+                const inPipeline = intakenIds.includes(t.id)
+                const isProcessing = processingIds.has(t.id)
+                const ringClass = isProcessing
+                    ? 'border-ai/40 ring-2 ring-ai/20 transition-all'
+                    : inPipeline
+                    ? 'border-success/40 ring-1 ring-success/20'
+                    : isNew
+                    ? 'border-ai/60 ring-2 ring-ai/30 animate-in fade-in zoom-in-95 duration-500'
+                    : isFocused
+                    ? 'border-ai ring-2 ring-ai/40'
+                    : 'border-border hover:border-foreground/20'
                 return (
-                    <div key={t.id} className="rounded-lg border border-border bg-card overflow-hidden hover:border-foreground/20 transition-colors">
+                    <div key={t.id} className={`rounded-lg border bg-card overflow-hidden transition-colors ${ringClass}`}>
                         <div className="px-3 py-2 flex items-center gap-2">
                             <ChannelIcon channel={t.channel} />
                             <span className="text-[11px] font-bold text-foreground truncate flex-1 min-w-0">{t.from}</span>
@@ -5998,17 +6072,28 @@ function UnifiedInboxFeed({ threads }: { threads: SalesInboxThread[] }) {
                                     Dedup · {dupCount} channels
                                 </span>
                             )}
-                            {t.intent === 'urgent' && (
+                            {/* Status chip: mutually exclusive priority · Processing > In pipeline > New > intent */}
+                            {isProcessing ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 bg-ai/15 text-ai border border-ai/30">
+                                    <Loader2 className="h-2.5 w-2.5 animate-spin" /> Processing...
+                                </span>
+                            ) : inPipeline ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 bg-success/15 text-success border border-success/30 animate-in fade-in duration-300">
+                                    <Check className="h-2.5 w-2.5" /> In pipeline
+                                </span>
+                            ) : isNew ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 bg-ai text-ai-foreground">
+                                    <Sparkles className="h-2.5 w-2.5" /> New
+                                </span>
+                            ) : t.intent === 'urgent' ? (
                                 <span className="inline-flex items-center text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 bg-destructive/10 text-destructive border border-destructive/20">
                                     Urgent
                                 </span>
-                            )}
-                            {t.intent === 'action' && (
+                            ) : t.intent === 'action' ? (
                                 <span className="inline-flex items-center text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 bg-warning/10 text-warning border border-warning/20">
                                     Action
                                 </span>
-                            )}
-                            {t.intent === 'fyi' && (
+                            ) : (
                                 <span className="inline-flex items-center text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 bg-muted text-muted-foreground border border-border">
                                     FYI
                                 </span>
@@ -6025,6 +6110,46 @@ function UnifiedInboxFeed({ threads }: { threads: SalesInboxThread[] }) {
                                 <span className="ml-auto">Strata intent score · {t.intentScore}</span>
                             </div>
                         </div>
+                        {(onReview || onIntake) && (
+                            <div className="px-3 pb-2 pt-1 flex items-center gap-2 border-t border-border/60 bg-muted/20">
+                                {isProcessing ? (
+                                    <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold text-ai">
+                                        <Loader2 className="h-3 w-3 animate-spin" /> Adding to funnel...
+                                    </span>
+                                ) : inPipeline ? (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-success">
+                                        <ArrowRight className="h-3 w-3" aria-hidden="true" /> Added to funnel
+                                    </span>
+                                ) : (
+                                    <>
+                                        {onReview && (
+                                            <button
+                                                type="button"
+                                                onClick={() => onReview(t.id)}
+                                                className="inline-flex items-center justify-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-medium border border-border bg-card hover:bg-muted/60 text-foreground transition-colors"
+                                            >
+                                                <Eye className="h-3 w-3" aria-hidden="true" />
+                                                Review
+                                            </button>
+                                        )}
+                                        {onIntake && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleIntakeClick(t.id)}
+                                                className={`ml-auto inline-flex items-center justify-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-bold transition-colors text-foreground ${
+                                                    isNew
+                                                        ? 'bg-primary hover:bg-primary/90'
+                                                        : 'bg-primary/20 border border-primary/40 hover:bg-primary/30'
+                                                }`}
+                                            >
+                                                Intake
+                                                <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                                            </button>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )
             })}
@@ -6578,10 +6703,30 @@ function SalesInboxFeedPreview() {
 
 // ─── sales-thread-detail ────────────────────────────────────────────────────
 function SalesThreadDetailPreview() {
-    const t = SALES_INBOX_THREADS[0] // MANATT urgent email
+    // Reactive to selectedThreadId · changes when the user clicks Review on a
+    // different card in the right panel's UnifiedInboxFeed.
+    const selectedId = useSelectedThread()
+    const t = useMemo(
+        () => SALES_INBOX_THREADS.find(x => x.id === selectedId) ?? SALES_INBOX_THREADS[0],
+        [selectedId],
+    )
+
+    const urgencyBorder = t.urgency === 'high' ? 'border-l-4 border-l-destructive'
+                       : t.urgency === 'med'  ? 'border-l-4 border-l-warning'
+                       : ''
+
     return (
-        <SalesPreviewShell icon={Mail} filename={`thread-${t.id}.eml`} size="14 KB" statusBadge={{ label: t.intent, tone: t.intent === 'urgent' ? 'danger' : t.intent === 'action' ? 'warning' : 'neutral' }}>
-            <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <SalesPreviewShell
+            icon={Mail}
+            filename={`thread-${t.id}.eml`}
+            size="14 KB"
+            statusBadge={{
+                label: t.intent,
+                tone: t.intent === 'urgent' ? 'danger' : t.intent === 'action' ? 'warning' : 'neutral',
+            }}
+        >
+            {/* Email header + body · urgency shown via border-l color bar + SalesPreviewShell status badge */}
+            <div className={`rounded-xl border border-border bg-card overflow-hidden ${urgencyBorder}`}>
                 <div className="px-4 py-3 bg-muted/30 border-b border-border space-y-1">
                     <div className="grid grid-cols-[60px_1fr] gap-2 text-[11px]">
                         <span className="text-muted-foreground">Channel</span>
@@ -6604,6 +6749,42 @@ function SalesThreadDetailPreview() {
                     {t.snippet}
                 </div>
             </div>
+
+            {/* Attachments */}
+            {t.attachments && t.attachments.length > 0 && (
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                    <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center gap-2">
+                        <Paperclip className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-foreground">
+                            Attachments · {t.attachments.length}
+                        </span>
+                    </div>
+                    <ul className="divide-y divide-border">
+                        {t.attachments.map(att => (
+                            <li key={att.filename} className="px-4 py-2 flex items-center gap-3 text-[11px]">
+                                <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+                                <span className="text-foreground flex-1 truncate">{att.filename}</span>
+                                <span className="text-muted-foreground tabular-nums shrink-0">{att.size}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {/* Topic chips */}
+            {t.topics && t.topics.length > 0 && (
+                <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Topics</div>
+                    <div className="flex flex-wrap gap-1.5">
+                        {t.topics.map(topic => (
+                            <span key={topic} className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 bg-info/10 text-info border border-info/20">
+                                {topic}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             <div className="rounded-lg border border-ai/30 bg-ai/5 px-3 py-2 text-[11px] text-foreground flex items-start gap-2">
                 <Sparkles className="h-3.5 w-3.5 text-ai shrink-0 mt-0.5" aria-hidden="true" />
                 <div>

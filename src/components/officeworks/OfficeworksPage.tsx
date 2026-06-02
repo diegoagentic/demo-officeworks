@@ -94,7 +94,10 @@ const OFFICEWORKS_NOTIF_EVENTS = [
     'officeworks:ld-winner-select-open',
     'officeworks:ld-final-upload-open',
     // Sales flow events
-    'officeworks:sales-inbox-ingest',
+    // NOTE: 'officeworks:sales-inbox-ingest' intentionally omitted — at sc-S.0
+    // the SalesInboxModal (opened by OfficeworksFunnel) is the triage surface,
+    // not the Review modal. The Review modal opens from the inbox's Review/Intake
+    // actions (onOpenReview) once a thread is picked.
     'officeworks:sales-intake-open',
     'officeworks:sales-capacity-open',
     'officeworks:sales-assign-open',

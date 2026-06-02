@@ -62,6 +62,24 @@ export const SALES_COPPER_STAGES = [
 export type SalesInboxChannel = 'email' | 'teams' | 'portal'
 export type SalesInboxUrgency = 'high' | 'med' | 'low'
 
+// Topic taxonomy · derived from existing thread content (AS-IS grounded) ·
+// powers the topic filter chips in SalesInboxModal.
+export type SalesInboxTopic =
+    | 'scope-lock' | 'pricing-gsa' | 'rfp-portal' | 'new-opp' | 'day-two'
+    | 'works-gap' | 'vendor-logistics' | 'pipeline-exec' | 'noise'
+
+export const SALES_INBOX_TOPICS: { id: SalesInboxTopic; label: string }[] = [
+    { id: 'scope-lock',       label: 'Scope lock' },
+    { id: 'pricing-gsa',      label: 'Pricing / GSA' },
+    { id: 'rfp-portal',       label: 'RFP / GC portal' },
+    { id: 'new-opp',          label: 'New opportunity' },
+    { id: 'day-two',          label: 'Day-Two reorder' },
+    { id: 'works-gap',        label: 'Works-form gap' },
+    { id: 'vendor-logistics', label: 'Vendor / logistics' },
+    { id: 'pipeline-exec',    label: 'Pipeline / exec' },
+    { id: 'noise',            label: 'Noise' },
+]
+
 export interface SalesInboxThread {
     id: string
     channel: SalesInboxChannel
@@ -75,12 +93,16 @@ export interface SalesInboxThread {
     dedupGroupId?: string
     oppLinked?: string         // matched opp id if found
     intent: 'action' | 'fyi' | 'urgent'
+    topic: SalesInboxTopic
     hoursSinceLastTouch?: number
+    attachments?: { filename: string; size: string }[]
+    topics?: string[]
 }
 
 export const SALES_INBOX_THREADS: SalesInboxThread[] = [
     {
         id: 'sit-001',
+        topic: 'scope-lock',
         channel: 'email',
         from: 'Caitlin Barolet · MANATT Facilities',
         fromOrg: 'MANATT Phelps & Phillips',
@@ -93,9 +115,15 @@ export const SALES_INBOX_THREADS: SalesInboxThread[] = [
         intent: 'urgent',
         hoursSinceLastTouch: 26,
         dedupGroupId: 'dg-manatt',
+        attachments: [
+            { filename: 'MANATT-4F-floor-plan-v2.pdf', size: '184 KB' },
+            { filename: 'GSA-SQ-436533-pricing.xlsx', size: '42 KB' },
+        ],
+        topics: ['MANATT-4F', 'GSA SQ', 'Scope lock', '120 workstations'],
     },
     {
         id: 'sit-002',
+        topic: 'scope-lock',
         channel: 'teams',
         from: 'Caitlin Barolet · MANATT Facilities',
         fromOrg: 'MANATT Phelps & Phillips',
@@ -108,9 +136,11 @@ export const SALES_INBOX_THREADS: SalesInboxThread[] = [
         intent: 'urgent',
         hoursSinceLastTouch: 26,
         dedupGroupId: 'dg-manatt',
+        topics: ['MANATT-4F', 'Scope lock', 'Teams cross-channel'],
     },
     {
         id: 'sit-003',
+        topic: 'pricing-gsa',
         channel: 'email',
         from: 'David Lin · JPM Procurement',
         fromOrg: 'JPMorgan Chase',
@@ -121,9 +151,12 @@ export const SALES_INBOX_THREADS: SalesInboxThread[] = [
         urgency: 'high',
         oppLinked: 'opp-jpm-atl',
         intent: 'action',
+        attachments: [{ filename: 'JPM-ATL-RFP-2026.pdf', size: '320 KB' }],
+        topics: ['JPM Strategic', '8 floors', 'Pricing burst', 'ATL'],
     },
     {
         id: 'sit-004',
+        topic: 'rfp-portal',
         channel: 'portal',
         from: 'Building Connected · GC portal',
         fromOrg: 'CBRE',
@@ -134,9 +167,15 @@ export const SALES_INBOX_THREADS: SalesInboxThread[] = [
         urgency: 'high',
         oppLinked: 'opp-manatt-4f',
         intent: 'urgent',
+        attachments: [
+            { filename: 'BC-RFP-882041-GC-quote-template.xlsx', size: '128 KB' },
+            { filename: 'MANATT-4F-RFP-package.pdf', size: '2.1 MB' },
+        ],
+        topics: ['GC portal', 'BC-RFP', '24h deadline', 'MANATT-4F'],
     },
     {
         id: 'sit-005',
+        topic: 'day-two',
         channel: 'email',
         from: 'Marcus Webb · Day-Two request',
         fromOrg: 'PNC Bank · 28th Floor',
@@ -146,9 +185,11 @@ export const SALES_INBOX_THREADS: SalesInboxThread[] = [
         intentScore: 82,
         urgency: 'low',
         intent: 'action',
+        topics: ['Day-Two reorder', 'PNC', 'Coordinator route'],
     },
     {
         id: 'sit-006',
+        topic: 'works-gap',
         channel: 'email',
         from: 'Felicia Miano-Poles · Design',
         fromOrg: 'Officeworks · Design',
@@ -158,9 +199,12 @@ export const SALES_INBOX_THREADS: SalesInboxThread[] = [
         intentScore: 88,
         urgency: 'med',
         intent: 'action',
+        attachments: [{ filename: 'OPP-2026-0884-works-form-draft.pdf', size: '24 KB' }],
+        topics: ['Works form gap', 'CAD missing', 'SQ blank', 'Internal'],
     },
     {
         id: 'sit-007',
+        topic: 'vendor-logistics',
         channel: 'email',
         from: 'Jonathan Spence · CBRE',
         fromOrg: 'CBRE Construction Management',
@@ -171,9 +215,11 @@ export const SALES_INBOX_THREADS: SalesInboxThread[] = [
         urgency: 'low',
         oppLinked: 'opp-manatt-4f',
         intent: 'fyi',
+        topics: ['Construction milestones', 'CBRE', 'Install window'],
     },
     {
         id: 'sit-008',
+        topic: 'pipeline-exec',
         channel: 'teams',
         from: 'Sarah Finnegan · CRO',
         fromOrg: 'Officeworks · Exec',
@@ -183,9 +229,12 @@ export const SALES_INBOX_THREADS: SalesInboxThread[] = [
         intentScore: 84,
         urgency: 'med',
         intent: 'action',
+        attachments: [{ filename: 'walls-pipeline-75pct.xlsx', size: '88 KB' }],
+        topics: ['Pipeline review', 'Walls 75%', 'Exec prep'],
     },
     {
         id: 'sit-009',
+        topic: 'new-opp',
         channel: 'email',
         from: 'Alex Park · DLA Piper',
         fromOrg: 'DLA Piper',
@@ -195,9 +244,11 @@ export const SALES_INBOX_THREADS: SalesInboxThread[] = [
         intentScore: 79,
         urgency: 'med',
         intent: 'action',
+        topics: ['New opp', 'DLA Piper', '200 workstations', '6mo out'],
     },
     {
         id: 'sit-010',
+        topic: 'noise',
         channel: 'email',
         from: 'GSA Catalog Updates',
         fromOrg: 'GSA',
@@ -207,9 +258,11 @@ export const SALES_INBOX_THREADS: SalesInboxThread[] = [
         intentScore: 22,
         urgency: 'low',
         intent: 'fyi',
+        topics: ['GSA newsletter', 'Catalog 2026', 'No action'],
     },
     {
         id: 'sit-011',
+        topic: 'vendor-logistics',
         channel: 'email',
         from: 'Tifani Burgess · Teknion',
         fromOrg: 'Teknion',
@@ -220,9 +273,11 @@ export const SALES_INBOX_THREADS: SalesInboxThread[] = [
         urgency: 'med',
         oppLinked: 'opp-manatt-4f',
         intent: 'fyi',
+        topics: ['Teknion', 'CR 2046138', '6-week leadtime'],
     },
     {
         id: 'sit-012',
+        topic: 'noise',
         channel: 'email',
         from: 'Karen Dann auto-OoO',
         fromOrg: 'Officeworks · NC',
@@ -232,6 +287,7 @@ export const SALES_INBOX_THREADS: SalesInboxThread[] = [
         intentScore: 8,
         urgency: 'low',
         intent: 'fyi',
+        topics: ['Auto-reply', 'OoO'],
     },
 ]
 

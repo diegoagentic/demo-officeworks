@@ -124,3 +124,81 @@ export function useShowNewArrival(): boolean {
     }, []);
     return value;
 }
+
+// ─── sc-S.1 · Intake phase (2-phase flow with source picker) ─────────────────
+// Drives which sub-view the SalesOppRecordPreview + SalesOppIntakePanel render
+// when the modal is at stage `sales-intake`:
+//   source-pick  · left = 2 source cards · right = explainer
+//   processing   · both = cascade animation (~1.5s)
+//   refining     · left = DRAFT opp record with editable provenance fields ·
+//                  right = full pre-flight + clarification draft + SLA timer
+//   saving       · left = "Saving to Copper..." spinner overlay ·
+//                  right = same as refining but CTA disabled
+// Reset on sc-S.1 entry so F5/Back replay starts clean.
+
+export type IntakePhase = 'source-pick' | 'processing' | 'refining' | 'saving';
+
+const INTAKE_PHASE_KEY = 'officeworks:sales-intake-phase';
+const INTAKE_PHASE_EVENT = 'officeworks:sales-intake-phase-change';
+const VALID_PHASES: IntakePhase[] = ['source-pick', 'processing', 'refining', 'saving'];
+
+export function readIntakePhase(): IntakePhase {
+    if (typeof window === 'undefined') return 'source-pick';
+    const raw = window.sessionStorage.getItem(INTAKE_PHASE_KEY);
+    return VALID_PHASES.includes(raw as IntakePhase) ? (raw as IntakePhase) : 'source-pick';
+}
+
+export function writeIntakePhase(phase: IntakePhase): void {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(INTAKE_PHASE_KEY, phase);
+    window.dispatchEvent(new CustomEvent(INTAKE_PHASE_EVENT, { detail: phase }));
+}
+
+/** Reactive hook · re-renders when the intake phase changes. */
+export function useIntakePhase(): IntakePhase {
+    const [phase, setPhase] = useState<IntakePhase>(readIntakePhase);
+    useEffect(() => {
+        const onChange = (e: Event) => {
+            const detail = (e as CustomEvent).detail as IntakePhase | undefined;
+            setPhase(detail && VALID_PHASES.includes(detail) ? detail : readIntakePhase());
+        };
+        window.addEventListener(INTAKE_PHASE_EVENT, onChange);
+        return () => window.removeEventListener(INTAKE_PHASE_EVENT, onChange);
+    }, []);
+    return phase;
+}
+
+// ─── sc-S.1 · Intake source (which of the 2 options the rep picked) ──────────
+
+export type IntakeSource = null | 'link-copper' | 'upload-pdf';
+
+const INTAKE_SOURCE_KEY = 'officeworks:sales-intake-source';
+const INTAKE_SOURCE_EVENT = 'officeworks:sales-intake-source-change';
+const VALID_SOURCES = ['link-copper', 'upload-pdf'];
+
+export function readIntakeSource(): IntakeSource {
+    if (typeof window === 'undefined') return null;
+    const raw = window.sessionStorage.getItem(INTAKE_SOURCE_KEY);
+    return VALID_SOURCES.includes(raw ?? '') ? (raw as IntakeSource) : null;
+}
+
+export function writeIntakeSource(source: IntakeSource): void {
+    if (typeof window === 'undefined') return;
+    if (source) window.sessionStorage.setItem(INTAKE_SOURCE_KEY, source);
+    else window.sessionStorage.removeItem(INTAKE_SOURCE_KEY);
+    window.dispatchEvent(new CustomEvent(INTAKE_SOURCE_EVENT, { detail: source ?? null }));
+}
+
+/** Reactive hook · re-renders when the picked source changes. */
+export function useIntakeSource(): IntakeSource {
+    const [source, setSource] = useState<IntakeSource>(readIntakeSource);
+    useEffect(() => {
+        const onChange = (e: Event) => {
+            const detail = (e as CustomEvent).detail as IntakeSource | undefined;
+            setSource(detail && VALID_SOURCES.includes(detail) ? detail : null);
+        };
+        window.addEventListener(INTAKE_SOURCE_EVENT, onChange);
+        return () => window.removeEventListener(INTAKE_SOURCE_EVENT, onChange);
+    }, []);
+    return source;
+}

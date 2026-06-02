@@ -18,7 +18,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import { Dialog, Transition, TransitionChild, DialogPanel } from '@headlessui/react'
-import { X, Sparkles, FileText, MapPin, ClipboardCheck, ArrowRight, AlertCircle, CheckCircle2, FileWarning, Image as ImageIcon, Eye, UserCheck, Users, Paperclip, Mail, Loader2, HelpCircle, ShieldCheck, Search, AlertTriangle, DollarSign, Send, Calendar, Layers, Pencil, Inbox, Building2, Truck, ChevronDown, ChevronRight as ChevronRightIcon, Save, Edit3, Target, TrendingUp, MessageSquare, Smartphone, ExternalLink, Activity, Clock, Briefcase, Award, Check } from 'lucide-react'
+import { X, Sparkles, FileText, MapPin, ClipboardCheck, ArrowRight, AlertCircle, CheckCircle2, FileWarning, Image as ImageIcon, Eye, UserCheck, Users, Paperclip, Mail, Loader2, HelpCircle, ShieldCheck, Search, AlertTriangle, DollarSign, Send, Calendar, Layers, Pencil, Inbox, Building2, Truck, ChevronDown, ChevronRight as ChevronRightIcon, Save, Edit3, Target, TrendingUp, MessageSquare, Smartphone, ExternalLink, Activity, Clock, Briefcase, Award, Check, Database, Upload } from 'lucide-react'
 import { useDemo } from '../../context/DemoContext'
 import { MANATT_ORDER_META } from './shared/manattOrderData'
 import {
@@ -38,10 +38,14 @@ import {
     SALES_PROPOSAL_LINE_ITEMS, SALES_PROPOSAL_META,
     SALES_HANDOFF_PACKET, SALES_HANDOFF_ROUTES,
     SALES_STAGE_AI_BANNER, SALES_STAGE_PAINPOINT_CHIPS,
+    SALES_OPP_EXTRACTED_SNIPPETS, SALES_OPP_CLARIFICATION_DRAFT,
+    SALES_OPP_INTAKE_INSIGHTS,
+    SALES_INTAKE_SOURCES, SALES_INTAKE_PROCESSING_STEPS,
     type SalesInboxThread, type SalesRep,
+    type IntakeSourceCard,
 } from './shared/manattSalesData'
 import { useOfficeworksVertical } from './shared/verticalSignal'
-import { useSelectedThread, writeSelectedThread, useIntakenThreads, addIntakenThread, useShowNewArrival, MANATT_THREAD_ID } from './shared/salesInboxSignal'
+import { useSelectedThread, writeSelectedThread, useIntakenThreads, addIntakenThread, useShowNewArrival, useIntakePhase, writeIntakePhase, useIntakeSource, writeIntakeSource, MANATT_THREAD_ID } from './shared/salesInboxSignal'
 import { OFFICEWORKS_FUNNEL } from './shared/funnelStages'
 import CapacityHeatmap from './shared/CapacityHeatmap'
 import BlueprintFloorPlan from './shared/BlueprintFloorPlan'
@@ -624,7 +628,7 @@ function DocTabContent({ tab, stage, flowProgress }: { tab: DocTab; stage: Offic
     // ─── Sales doc previews ────────────────────────────────────────────────
     if (tab === 'sales-inbox-feed')       return <SalesInboxFeedPreview />
     if (tab === 'sales-thread-detail')    return <SalesThreadDetailPreview />
-    if (tab === 'sales-opp-record')       return <SalesOppRecordPreview />
+    if (tab === 'sales-opp-record')       return <SalesOppRecordPreview stage={stage} />
     if (tab === 'sales-capacity-ledger')  return <SalesCapacityLedgerPreview />
     if (tab === 'sales-assignment')       return <SalesAssignmentPreview />
     if (tab === 'sales-discovery-notes')  return <SalesDiscoveryNotesPreview />
@@ -6157,25 +6161,372 @@ function UnifiedInboxFeed({
     )
 }
 
-// ─── sc-S.1 · Opportunity Intake ────────────────────────────────────────────
-function SalesOppIntakePanel({ onValidate }: LDPanelProps) {
-    const opp = SALES_OPPORTUNITIES[0] // MANATT-4F
-    const missing = useMemo(() => {
-        const fields: { label: string; status: 'missing' | 'present'; value?: string }[] = [
-            { label: 'CAD file',            status: opp.specAttached ? 'present' : 'missing' },
-            { label: 'SQ number',           status: 'missing' },
-            { label: 'Scope detail',        status: 'missing' },
-            { label: 'Timeline / move-in',  status: 'present', value: '2026-08-30' },
-            { label: 'Company',             status: 'present', value: opp.company },
-            { label: 'Est value range',     status: 'present', value: `$${(opp.estValueUSD / 1000).toFixed(0)}k` },
-            { label: 'Vertical',            status: 'present', value: opp.vertical },
-            { label: 'Market',              status: 'present', value: opp.market },
-            { label: 'Account type',        status: 'present', value: opp.accountType },
-        ]
-        return fields
-    }, [opp])
-    const missingCount = missing.filter(m => m.status === 'missing').length
+// ─── sc-S.1 · Email draft modal · clarification reply review + send ─────────
+// Nested modal inside the Document Review Modal · shows the recipient (the
+// missing piece per user feedback), subject, editable body. On Send, simulates
+// a 600ms send animation then resolves to onSent (caller decides what happens
+// next · typically: close modal + advance the demo).
+function EmailDraftModal({
+    isOpen, onClose, onSent,
+    to, subject, body,
+}: {
+    isOpen: boolean
+    onClose: () => void
+    onSent: () => void
+    to: string
+    subject: string
+    body: string
+}) {
+    type SendPhase = 'idle' | 'sending' | 'sent'
+    const [phase, setPhase] = useState<SendPhase>('idle')
+    const [draftBody, setDraftBody] = useState(body)
 
+    // Reset state every time the modal opens.
+    useEffect(() => {
+        if (isOpen) {
+            setPhase('idle')
+            setDraftBody(body)
+        }
+    }, [isOpen, body])
+
+    const handleSend = () => {
+        if (phase !== 'idle') return
+        setPhase('sending')
+        setTimeout(() => {
+            setPhase('sent')
+            setTimeout(() => onSent(), 400)
+        }, 600)
+    }
+
+    return (
+        <Transition show={isOpen} as={Fragment}>
+            <Dialog onClose={phase === 'idle' ? onClose : () => {}} className="relative z-[400]">
+                <TransitionChild as={Fragment}
+                    enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100"
+                    leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0"
+                >
+                    <div className="fixed inset-0 bg-background/70 backdrop-blur-sm" />
+                </TransitionChild>
+                <div className="fixed inset-0 flex items-center justify-center p-4">
+                    <TransitionChild as={Fragment}
+                        enter="ease-out duration-200" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
+                        leave="ease-in duration-150" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
+                    >
+                        <DialogPanel className="w-full max-w-2xl rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col">
+                            {/* Header */}
+                            <div className="px-5 py-3 border-b border-border flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-lg bg-ai/10 flex items-center justify-center">
+                                    <Sparkles className="h-4 w-4 text-ai" aria-hidden="true" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-bold text-foreground">Clarification email · review and send</div>
+                                    <div className="text-[11px] text-muted-foreground mt-0.5">Strata drafted this reply · the rep reviews and sends</div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    disabled={phase !== 'idle'}
+                                    className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    aria-label="Close"
+                                >
+                                    <X className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                            </div>
+
+                            {/* Recipient + subject */}
+                            <div className="px-5 py-3 border-b border-border bg-muted/30 space-y-2">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground w-12 shrink-0">To</span>
+                                    <span className="text-[12px] text-foreground font-medium">{to}</span>
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground w-12 shrink-0">Cc</span>
+                                    <span className="text-[11px] text-muted-foreground italic">[Sales Lead] · auto-cc per CLAUDE.md "send-as-rep"</span>
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground w-12 shrink-0">Subject</span>
+                                    <span className="text-[12px] text-foreground font-medium">{subject}</span>
+                                </div>
+                            </div>
+
+                            {/* Body (editable) */}
+                            <div className="px-5 py-3 border-b border-border">
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Body · editable</label>
+                                <textarea
+                                    value={draftBody}
+                                    onChange={e => setDraftBody(e.target.value)}
+                                    disabled={phase !== 'idle'}
+                                    rows={14}
+                                    className="w-full rounded-md border border-border bg-card text-foreground text-[12px] px-3 py-2 font-sans leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-ai/40 focus:border-ai/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                                />
+                            </div>
+
+                            {/* Footer · status note + actions */}
+                            <div className="px-5 py-3 bg-muted/20 flex items-center gap-3">
+                                <div className="flex-1 min-w-0 text-[11px] text-muted-foreground italic flex items-center gap-1.5">
+                                    {phase === 'idle' && (
+                                        <>
+                                            <Sparkles className="h-3 w-3 text-ai shrink-0" aria-hidden="true" />
+                                            <span>Strata never auto-sends · review and click Send when ready.</span>
+                                        </>
+                                    )}
+                                    {phase === 'sending' && (
+                                        <>
+                                            <Loader2 className="h-3 w-3 text-ai animate-spin shrink-0" aria-hidden="true" />
+                                            <span>Sending via Outlook…</span>
+                                        </>
+                                    )}
+                                    {phase === 'sent' && (
+                                        <>
+                                            <CheckCircle2 className="h-3 w-3 text-success shrink-0" aria-hidden="true" />
+                                            <span>Sent · saving opp record + advancing.</span>
+                                        </>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    disabled={phase !== 'idle'}
+                                    className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[11px] font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSend}
+                                    disabled={phase !== 'idle'}
+                                    className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[11px] font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Send className="h-3 w-3" aria-hidden="true" /> Send via Outlook
+                                </button>
+                            </div>
+                        </DialogPanel>
+                    </TransitionChild>
+                </div>
+            </Dialog>
+        </Transition>
+    )
+}
+
+// ─── sc-S.1 · Strata insights card (right-panel · Phase 1C/refining only) ───
+// Surfaces the "AI value-add" headline · 3 KPIs + pattern match + forward look
+// + next best actions. Data lives in SALES_OPP_INTAKE_INSIGHTS · risk level
+// derives dynamically from the live toClarifyCount in the parent panel.
+function SalesIntakeInsightsCard({ toClarifyCount }: { toClarifyCount: number }) {
+    const I = SALES_OPP_INTAKE_INSIGHTS
+    const risk: { label: string; tone: 'warning' | 'info' | 'success' } =
+        toClarifyCount > 3 ? { label: 'High', tone: 'warning' }
+        : toClarifyCount > 0 ? { label: 'Med',  tone: 'info' }
+        :                       { label: 'Low',  tone: 'success' }
+
+    return (
+        <div className="rounded-xl border border-ai/30 bg-ai/5 overflow-hidden">
+            {/* Header */}
+            <div className="px-4 py-2 bg-card border-b border-ai/20 flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-ai" aria-hidden="true" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">
+                    Strata insights · this intake
+                </span>
+            </div>
+
+            {/* 3 mini-KPIs */}
+            <div className="grid grid-cols-3 divide-x divide-ai/20 bg-card">
+                <SalesInsightKPI label="Confidence" value={`${I.confidence.pct}%`} tone="ai" sub={I.confidence.detail} />
+                <SalesInsightKPI label="Incomplete risk" value={risk.label} tone={risk.tone} sub={`${toClarifyCount} fields to clarify`} />
+                <SalesInsightKPI label="Time saved" value={`~${I.timeSaved.hoursMin}-${I.timeSaved.hoursMax}h`} tone="success" sub={I.timeSaved.detail} />
+            </div>
+
+            {/* Pattern match */}
+            <div className="px-4 py-2.5 border-t border-ai/20 bg-card flex items-start gap-2">
+                <TrendingUp className="h-3.5 w-3.5 text-ai shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="text-[11px] text-foreground leading-relaxed">
+                    <strong>Pattern:</strong> {I.patternMatch.title} · {I.patternMatch.detail}
+                </div>
+            </div>
+
+            {/* Forward look */}
+            <div className="px-4 py-2.5 border-t border-ai/20 bg-card">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                    <Eye className="h-3 w-3" aria-hidden="true" /> Forward look · sc-S.2 / sc-S.3
+                </div>
+                <ul className="space-y-1">
+                    {I.forwardLook.map(item => (
+                        <li key={item} className="text-[11px] text-foreground flex items-start gap-1.5">
+                            <ChevronRightIcon className="h-3 w-3 text-ai shrink-0 mt-0.5" aria-hidden="true" />
+                            <span>{item}</span>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            {/* Next best actions */}
+            <div className="px-4 py-3 border-t border-ai/20 bg-card">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mb-2">
+                    Next best actions
+                </div>
+                <ul className="space-y-1.5">
+                    {I.nextBestActions.map((action, i) => (
+                        <li key={action} className="text-[11px] text-foreground flex items-start gap-2">
+                            <span className="shrink-0 mt-0.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-ai/15 text-ai text-[9px] font-bold">{i + 1}</span>
+                            <span>{action}</span>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </div>
+    )
+}
+
+function SalesInsightKPI({ label, value, tone, sub }: {
+    label: string
+    value: string
+    tone: 'ai' | 'success' | 'warning' | 'info'
+    sub: string
+}) {
+    const toneClass = tone === 'ai' ? 'text-ai'
+                    : tone === 'success' ? 'text-success'
+                    : tone === 'warning' ? 'text-warning'
+                    : 'text-info'
+    return (
+        <div className="px-3 py-2.5 text-center">
+            <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">{label}</div>
+            <div className={`text-[18px] font-bold mt-0.5 ${toneClass}`}>{value}</div>
+            <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">{sub}</div>
+        </div>
+    )
+}
+
+// ─── sc-S.1 · Opportunity Intake ────────────────────────────────────────────
+// IMPORTANT React-hooks rule · all hooks declared at the top BEFORE any early
+// return · do not reintroduce useMemo / useState below the phase conditionals.
+function SalesOppIntakePanel({ onValidate }: LDPanelProps) {
+    const phase = useIntakePhase()
+    const source = useIntakeSource()
+    const opp = SALES_OPPORTUNITIES[0] // MANATT-4F
+    const [draftOpen, setDraftOpen] = useState(false)
+    const [emailModalOpen, setEmailModalOpen] = useState(false)
+    const [saveTimer, setSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+
+    // Pre-flight fields · 3 status tones (declared up-front so the hook order
+    // stays constant across all phases · used only in refining/saving views).
+    //   present       · confirmed by source, ready for submit
+    //   present-soft  · inferred from thread (guess) · needs client confirmation
+    //   missing       · not extractable from thread · must be clarified
+    type FieldStatus = 'missing' | 'present' | 'present-soft'
+    type FieldRow = { label: string; status: FieldStatus; value?: string; hint?: string }
+
+    const fields = useMemo<FieldRow[]>(() => [
+        // CAD attached as PDF floor plan per AS-IS narrative · Design team needs DWG
+        // to base their layout · the demo-level subvalidation makes this visible.
+        { label: 'CAD file',            status: 'present-soft', value: 'PDF floor plan attached', hint: 'Design team needs DWG · clarify with client' },
+        { label: 'SQ number',           status: 'missing', hint: 'Spec Quote # from prior engagement' },
+        { label: 'Scope detail',        status: 'missing', hint: 'Pieces + finish + qty · needed for pricing' },
+        { label: 'Timeline / move-in',  status: 'present-soft', value: '2026-08-30 · guess', hint: 'Inferred from "summer move-in" · needs confirmation' },
+        { label: 'Company',             status: 'present', value: opp.company },
+        { label: 'Est value range',     status: 'present', value: `$${(opp.estValueUSD / 1000).toFixed(0)}k` },
+        { label: 'Vertical',            status: 'present', value: opp.vertical },
+        { label: 'Market',              status: 'present', value: opp.market },
+        { label: 'Account type',        status: 'present', value: opp.accountType },
+    ], [opp])
+
+    const missingCount = fields.filter(f => f.status === 'missing').length
+    const softCount = fields.filter(f => f.status === 'present-soft').length
+    const toClarifyCount = missingCount + softCount
+    const allClear = toClarifyCount === 0
+
+    // Sticky CTA click · 2 paths:
+    //   allClear   → no clarification needed · go straight to saving animation.
+    //   has gaps   → open the EmailDraftModal so the rep reviews and sends the
+    //                clarification reply · on Send confirm, run the same save
+    //                animation (writeIntakePhase('saving') + onValidate).
+    const runSaveAnimation = () => {
+        if (phase === 'saving') return
+        writeIntakePhase('saving')
+        const t = setTimeout(() => {
+            onValidate()
+        }, 800)
+        setSaveTimer(t)
+    }
+    const handleSave = () => {
+        const hasGaps = !allClear
+        if (hasGaps) {
+            setEmailModalOpen(true)
+            return
+        }
+        runSaveAnimation()
+    }
+    const handleEmailSent = () => {
+        setEmailModalOpen(false)
+        runSaveAnimation()
+    }
+    useEffect(() => () => { if (saveTimer) clearTimeout(saveTimer) }, [saveTimer])
+
+    // Phase 1A · Source picker · context-only right panel (no redundant list).
+    if (phase === 'source-pick') {
+        return (
+            <>
+                <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+                    <SalesPanelHero
+                        stage="sales-intake"
+                        title="Opportunity intake · pick a source first"
+                        subtitle="Strata drafts the opp record from the source you pick on the left"
+                    />
+                    <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+                        <div className="flex items-center gap-2">
+                            <ClipboardCheck className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">Why this step exists</span>
+                        </div>
+                        <p className="text-[11px] text-foreground leading-relaxed">
+                            Per the AS-IS BPMN, the AI-triage agent must <strong>link to a Copper opp (if matched)</strong> before the rep drafts the Works form. Skipping this step is the upstream root cause of the {SALES_VOLUME_FACTS.worksFormIncompletePctMin}-{SALES_VOLUME_FACTS.worksFormIncompletePctMax}% Works form incompleteness (Felicia · Spec Check 30-Apr).
+                        </p>
+                        <p className="text-[11px] text-muted-foreground italic">
+                            For MANATT-4F: Strata already found <strong className="text-foreground not-italic">Hayes Construction</strong> as the GC referrer in Copper · the recommended path enriches the new opp with that account context.
+                        </p>
+                    </div>
+                    <SalesSourceCite source="BPMN AI-triage agent · &quot;Link to Copper opp (if matched)&quot; · HTML PP S7 (process orchestrator gate)" />
+                </div>
+                <SalesStickyCTA
+                    label="Pick an intake source on the left"
+                    onClick={() => {}}
+                    disabled
+                    secondaryNote="Strata waits for the rep to pick a source · then drafts the opp record."
+                />
+            </>
+        )
+    }
+
+    // Phase 1B · Processing · right panel mirrors the left animation.
+    if (phase === 'processing') {
+        const sourceLabel = source === 'link-copper' ? 'Hayes Construction (Copper)'
+                          : source === 'upload-pdf'  ? 'Uploaded PDF'
+                          : 'picked source'
+        return (
+            <>
+                <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+                    <SalesPanelHero
+                        stage="sales-intake"
+                        title="Strata processing intake"
+                        subtitle={`Drafting opp record from ${sourceLabel} · ~1.5s`}
+                    />
+                    <div className="rounded-xl border border-ai/30 bg-ai/5 p-4 flex items-center gap-3">
+                        <Loader2 className="h-5 w-5 text-ai animate-spin shrink-0" aria-hidden="true" />
+                        <div className="text-[12px] text-foreground">
+                            <strong className="text-ai">Strata AI · </strong>
+                            Extracting → enriching → drafting. Hold tight.
+                        </div>
+                    </div>
+                </div>
+                <SalesStickyCTA
+                    label="Processing…"
+                    onClick={() => {}}
+                    disabled
+                    secondaryNote="Strata is drafting the opp record from your picked source."
+                />
+            </>
+        )
+    }
+
+    // Phase 1C/1D · Refining or Saving · the full pre-flight + draft view.
     return (
         <>
             <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
@@ -6185,45 +6536,151 @@ function SalesOppIntakePanel({ onValidate }: LDPanelProps) {
                     subtitle={`${opp.company} · ${opp.projectCode} · $${(opp.estValueUSD / 1000).toFixed(0)}k est · ${opp.vertical}`}
                 />
 
+                {/* ─── Strata insights · 3 KPIs + pattern + forward look + actions ─── */}
+                {/* Provenance card lives in the LEFT panel now (DRAFT opp record) · */}
+                {/* showing it on the right too would duplicate the same data.       */}
+                <SalesIntakeInsightsCard toClarifyCount={toClarifyCount} />
+
+                {/* ─── Pre-flight check · 9 Works form fields ─────────────────────── */}
                 <div className="rounded-xl border border-border bg-card overflow-hidden">
                     <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center gap-2">
                         <ClipboardCheck className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />
                         <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">Pre-flight check · 9 Works form fields</span>
                         <span className={`ml-auto text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${
-                            missingCount === 0 ? 'bg-success/10 text-success border border-success/20' :
-                            'bg-warning/10 text-warning border border-warning/20'
+                            allClear ? 'bg-success/10 text-success border border-success/20'
+                                     : 'bg-warning/10 text-warning border border-warning/20'
                         }`}>
-                            {missingCount === 0 ? 'Complete' : `${missingCount} missing`}
+                            {allClear ? 'Complete' : `${toClarifyCount} to clarify`}
                         </span>
                     </div>
                     <ul className="divide-y divide-border">
-                        {missing.map(f => (
-                            <li key={f.label} className="px-4 py-2 flex items-center gap-3 text-[11px]">
-                                <span className="text-muted-foreground w-32 shrink-0">{f.label}</span>
+                        {fields.map(f => (
+                            <li key={f.label} className="px-4 py-2 flex items-start gap-3 text-[11px]">
+                                <span className="text-muted-foreground w-28 shrink-0 pt-0.5">{f.label}</span>
                                 {f.status === 'present' ? (
                                     <span className="text-foreground flex-1">{f.value ?? '—'}</span>
+                                ) : f.status === 'present-soft' ? (
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-warning font-medium">{f.value}</div>
+                                        {f.hint && <div className="text-[10px] text-muted-foreground italic mt-0.5">{f.hint}</div>}
+                                    </div>
                                 ) : (
-                                    <span className="flex-1 inline-flex items-center gap-1 text-warning">
-                                        <AlertCircle className="h-3 w-3" aria-hidden="true" />
-                                        <em className="italic">missing · clarify before submit</em>
-                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="inline-flex items-center gap-1 text-warning">
+                                            <AlertCircle className="h-3 w-3" aria-hidden="true" />
+                                            <em className="italic">missing · clarify before submit</em>
+                                        </div>
+                                        {f.hint && <div className="text-[10px] text-muted-foreground mt-0.5">{f.hint}</div>}
+                                    </div>
                                 )}
                                 {f.status === 'present' ? (
-                                    <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0" aria-hidden="true" />
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" aria-hidden="true" />
                                 ) : (
-                                    <AlertCircle className="h-3.5 w-3.5 text-warning shrink-0" aria-hidden="true" />
+                                    <AlertCircle className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" aria-hidden="true" />
                                 )}
                             </li>
                         ))}
                     </ul>
                 </div>
 
-                <SalesSourceCite source={`Felicia Miano-Poles · Spec Check 30-Apr · ~${SALES_VOLUME_FACTS.worksFormIncompletePctMin}-${SALES_VOLUME_FACTS.worksFormIncompletePctMax}% of Works forms arrive incomplete`} />
+                {/* ─── Prereqs gateway · process orchestrator gate (BPMN PP S7) ──── */}
+                {allClear ? (
+                    <div className="rounded-xl border border-success/30 bg-success/5 p-3.5 flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-success shrink-0" aria-hidden="true" />
+                        <div className="flex-1">
+                            <p className="text-[12px] font-semibold text-foreground">All prereqs met · ready to submit Works form</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">Strata orchestrator gate cleared · downstream design team unblocked</p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="rounded-xl border border-warning/30 bg-warning/5 p-3.5 flex items-center gap-3">
+                        <AlertCircle className="h-5 w-5 text-warning shrink-0" aria-hidden="true" />
+                        <div className="flex-1">
+                            <p className="text-[12px] font-semibold text-foreground">Prereqs not met · cannot submit Works form yet</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">Strata blocks the submit per BPMN PP S7 · process orchestrator gate</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                            <p className="text-[11px] font-bold text-warning uppercase tracking-wider">{missingCount} missing · {softCount} soft</p>
+                            <p className="text-[10px] text-muted-foreground">→ send clarification</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* ─── Strata-drafted clarification email · drafts only ──────────── */}
+                {!allClear && (
+                    <div className="rounded-xl border border-ai/30 bg-ai/5 overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setDraftOpen(o => !o)}
+                            className="w-full px-4 py-3 flex items-center gap-2 hover:bg-ai/10 transition-colors text-left"
+                            aria-expanded={draftOpen}
+                            aria-controls="sales-clarification-draft-body"
+                        >
+                            <Sparkles className="h-4 w-4 text-ai shrink-0" aria-hidden="true" />
+                            <div className="flex-1 min-w-0">
+                                <div className="text-[12px] font-semibold text-foreground">Strata drafted clarification reply · for your review</div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5">To: {SALES_OPP_CLARIFICATION_DRAFT.to}</div>
+                            </div>
+                            <span className="text-[9px] font-bold uppercase tracking-wider rounded border border-ai/30 bg-card text-ai px-1.5 py-0.5 shrink-0">Draft only</span>
+                            <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${draftOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                        </button>
+                        {draftOpen && (
+                            <div id="sales-clarification-draft-body" className="border-t border-ai/20 bg-card">
+                                <div className="px-4 py-3 border-b border-border space-y-1.5">
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Subject</div>
+                                    <div className="text-[12px] text-foreground font-medium">{SALES_OPP_CLARIFICATION_DRAFT.subject}</div>
+                                </div>
+                                <pre className="px-4 py-3 text-[11px] text-foreground font-sans whitespace-pre-wrap leading-relaxed">{SALES_OPP_CLARIFICATION_DRAFT.body}</pre>
+                                <div className="px-4 py-2.5 border-t border-border bg-muted/30 flex items-center gap-2">
+                                    <p className="text-[10px] text-muted-foreground italic flex-1">Strata never auto-sends · review and Send when ready, or edit inline before sending.</p>
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
+                                    >
+                                        <Edit3 className="h-3 w-3" aria-hidden="true" /> Edit draft
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                                    >
+                                        <Send className="h-3 w-3" aria-hidden="true" /> Send via Outlook
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ─── SLA timer preview ────────────────────────────────────────── */}
+                <div className="flex items-start gap-2 text-[11px] text-muted-foreground border-t border-border pt-3">
+                    <Clock className="h-3.5 w-3.5 text-foreground shrink-0 mt-0.5" aria-hidden="true" />
+                    <span><strong className="text-foreground">On submit:</strong> 24h designer assignment SLA starts · 48h kickoff SLA · auto-escalates to Sales Manager if breached</span>
+                </div>
+
+                <SalesSourceCite source={`Felicia Miano-Poles · Spec Check 30-Apr · ~${SALES_VOLUME_FACTS.worksFormIncompletePctMin}-${SALES_VOLUME_FACTS.worksFormIncompletePctMax}% Works forms incomplete · HTML BPMN PP S2 + PP S7 (process orchestrator gate)`} />
             </div>
             <SalesStickyCTA
-                label={missingCount > 0 ? 'Save opp record · request missing fields' : 'Save opp record · proceed'}
-                onClick={onValidate}
-                secondaryNote="Strata never auto-submits Works form · the rep clarifies and submits."
+                label={phase === 'saving'
+                    ? 'Saving to Copper…'
+                    : allClear ? 'Save opp record · submit Works form' : 'Save opp record · review clarification draft'}
+                onClick={handleSave}
+                disabled={phase === 'saving'}
+                secondaryNote={phase === 'saving'
+                    ? 'Strata writes the confirmed record to Copper · ~800ms.'
+                    : allClear
+                        ? 'Strata never auto-submits Works form · the rep clarifies and submits.'
+                        : 'Strata holds Works form submit until client clarifies · review the draft and send.'
+                }
+            />
+
+            {/* Nested modal · clarification email review + send */}
+            <EmailDraftModal
+                isOpen={emailModalOpen}
+                onClose={() => setEmailModalOpen(false)}
+                onSent={handleEmailSent}
+                to={SALES_OPP_CLARIFICATION_DRAFT.to}
+                subject={SALES_OPP_CLARIFICATION_DRAFT.subject}
+                body={SALES_OPP_CLARIFICATION_DRAFT.body}
             />
         </>
     )
@@ -6796,8 +7253,24 @@ function SalesThreadDetailPreview() {
 }
 
 // ─── sales-opp-record ───────────────────────────────────────────────────────
-function SalesOppRecordPreview() {
+// Phase-aware. At stage `sales-intake` it routes between:
+//   source-pick → SalesSourcePickerView (2 cards)
+//   processing  → SalesProcessingView (cascade animation)
+//   refining/saving → DRAFT opp record with editable provenance fields
+// At any other stage (sales-capacity, sales-discovery) it renders the original
+// "advanced" mock view (Stage 75% etc.) untouched.
+function SalesOppRecordPreview({ stage }: { stage: OfficeworksReviewStage }) {
+    const phase = useIntakePhase()
     const opp = SALES_OPPORTUNITIES[0]
+
+    if (stage === 'sales-intake') {
+        if (phase === 'source-pick') return <SalesSourcePickerView />
+        if (phase === 'processing')  return <SalesProcessingView />
+        // refining | saving · DRAFT opp record with editable provenance
+        return <SalesOppRecordDraftView phase={phase} />
+    }
+
+    // Default view for sales-capacity, sales-discovery · advanced mock state.
     return (
         <SalesPreviewShell icon={FileText} filename={`opp-${opp.projectCode}.json`} size="6 KB" statusBadge={{ label: `Stage ${opp.copperStage}%`, tone: 'info' }}>
             <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -6817,6 +7290,332 @@ function SalesOppRecordPreview() {
                         <li className="px-4 py-2 flex items-center justify-between text-[11px]"><span className="text-muted-foreground">SLA deadline</span><span className="text-foreground tabular-nums">{opp.slaDeadline}</span></li>
                     )}
                 </ul>
+            </div>
+        </SalesPreviewShell>
+    )
+}
+
+// ─── sc-S.1 · Phase 1A · Source picker (left panel) · compact side-by-side ──
+function SalesSourcePickerView() {
+    const handlePick = (id: 'link-copper' | 'upload-pdf') => {
+        writeIntakeSource(id)
+        writeIntakePhase('processing')
+    }
+    return (
+        <SalesPreviewShell icon={Inbox} filename="intake-source-picker" statusBadge={{ label: 'Pick source', tone: 'info' }}>
+            <div className="rounded-lg border border-ai/30 bg-ai/5 px-3 py-2 flex items-start gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-ai shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="text-[11px] text-foreground leading-snug">
+                    <span className="font-bold text-ai">Strata · </span>
+                    Pick a source to draft the opp record.
+                </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+                {SALES_INTAKE_SOURCES.map(src => (
+                    <SalesSourceCard key={src.id} src={src} onPick={handlePick} />
+                ))}
+            </div>
+        </SalesPreviewShell>
+    )
+}
+
+function SalesSourceCard({ src, onPick }: { src: IntakeSourceCard; onPick: (id: 'link-copper' | 'upload-pdf') => void }) {
+    const Icon = src.iconKind === 'database' ? Database : FileText
+    const isRecommended = src.confidence === 'recommended'
+    const ringClass = isRecommended ? 'border-ai/40 ring-1 ring-ai/20' : 'border-border'
+
+    // Link card · pre-filled URL input. Editable for demo confidence.
+    const [linkUrl, setLinkUrl] = useState(src.demoUrl ?? '')
+
+    // PDF card · 3-phase mini state machine.
+    type PdfPhase = 'empty' | 'uploading' | 'ready'
+    const [pdfPhase, setPdfPhase] = useState<PdfPhase>('empty')
+
+    const handleDropzoneClick = () => {
+        if (pdfPhase !== 'empty') return
+        setPdfPhase('uploading')
+        setTimeout(() => setPdfPhase('ready'), 500)
+    }
+    const handleRemovePdf = () => setPdfPhase('empty')
+
+    const linkProcessDisabled = linkUrl.trim().length === 0
+    const pdfProcessDisabled = pdfPhase !== 'ready'
+    const ctaDisabled = src.id === 'link-copper' ? linkProcessDisabled : pdfProcessDisabled
+
+    return (
+        <div className={`rounded-lg border ${ringClass} bg-card overflow-hidden flex flex-col`}>
+            {/* Compact header · icon + label + confidence chip */}
+            <div className="px-3 py-2.5 border-b border-border flex items-center gap-2">
+                <div className={`h-7 w-7 rounded-md flex items-center justify-center shrink-0 ${isRecommended ? 'bg-ai/10' : 'bg-muted'}`}>
+                    <Icon className={`h-3.5 w-3.5 ${isRecommended ? 'text-ai' : 'text-foreground'}`} aria-hidden="true" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-bold text-foreground truncate">{src.label}</div>
+                </div>
+                <span className={`shrink-0 inline-flex items-center text-[9px] font-bold uppercase tracking-wider rounded border px-1.5 py-0.5 ${
+                    isRecommended ? 'bg-ai/10 text-ai border-ai/30' : 'bg-muted text-muted-foreground border-border'
+                }`}>
+                    {isRecommended ? 'Reco' : 'Possible'}
+                </span>
+            </div>
+
+            {/* Match · 1-liner only when Strata found something */}
+            {src.matchTone === 'success' && (
+                <div className="px-3 py-1.5 border-b border-success/20 bg-success/5 flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3 w-3 text-success shrink-0" aria-hidden="true" />
+                    <span className="text-[10px] font-semibold text-foreground truncate">{src.matchLabel}</span>
+                </div>
+            )}
+
+            {/* Interaction widget · per-source */}
+            <div className="px-3 py-3 flex-1">
+                {src.id === 'link-copper' && (
+                    <div className="space-y-1.5">
+                        <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Copper URL</label>
+                        <div className="relative">
+                            <Database className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" aria-hidden="true" />
+                            <input
+                                type="text"
+                                value={linkUrl}
+                                onChange={e => setLinkUrl(e.target.value)}
+                                placeholder="https://app.copper.com/..."
+                                className="w-full pl-7 pr-2 py-1.5 rounded border border-border bg-card text-foreground text-[10px] focus:outline-none focus:ring-1 focus:ring-ai/40 focus:border-ai/40"
+                            />
+                        </div>
+                        <p className="text-[9px] text-muted-foreground italic">Pre-filled for demo</p>
+                    </div>
+                )}
+                {src.id === 'upload-pdf' && (
+                    <>
+                        {pdfPhase === 'empty' && (
+                            <button
+                                type="button"
+                                onClick={handleDropzoneClick}
+                                className="w-full h-full min-h-[100px] rounded-md border-2 border-dashed border-border bg-muted/20 hover:bg-muted/40 hover:border-ai/40 transition-colors p-3 flex flex-col items-center justify-center gap-1 cursor-pointer"
+                                aria-label="Click to upload demo PDF"
+                            >
+                                <Upload className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                                <span className="text-[10px] font-semibold text-foreground text-center leading-snug">Drop PDF · or click for demo file</span>
+                                <span className="text-[9px] text-muted-foreground">Up to 25 MB</span>
+                            </button>
+                        )}
+                        {pdfPhase === 'uploading' && (
+                            <div className="w-full min-h-[100px] rounded-md border-2 border-dashed border-ai/40 bg-ai/5 p-3 flex items-center gap-2">
+                                <Loader2 className="h-3.5 w-3.5 text-ai animate-spin shrink-0" aria-hidden="true" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-[10px] font-semibold text-foreground truncate">{src.demoFile?.name}</div>
+                                    <div className="text-[9px] text-muted-foreground">Uploading · {src.demoFile?.size}</div>
+                                </div>
+                            </div>
+                        )}
+                        {pdfPhase === 'ready' && (
+                            <div className="w-full min-h-[100px] rounded-md border-2 border-success/40 bg-success/5 p-3 flex items-center gap-2">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0" aria-hidden="true" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-[10px] font-semibold text-foreground truncate">{src.demoFile?.name}</div>
+                                    <div className="text-[9px] text-muted-foreground">Ready · {src.demoFile?.size}</div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleRemovePdf}
+                                    className="shrink-0 inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                    aria-label="Remove file"
+                                >
+                                    <X className="h-3 w-3" aria-hidden="true" />
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+
+            {/* CTA · full-width footer */}
+            <div className="px-3 pb-3">
+                <button
+                    type="button"
+                    onClick={() => onPick(src.id)}
+                    disabled={ctaDisabled}
+                    className={`w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-md text-[11px] font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                        isRecommended
+                            ? 'bg-primary text-primary-foreground hover:bg-primary/90 disabled:hover:bg-primary'
+                            : 'bg-card border border-primary/40 text-foreground hover:bg-primary/10 disabled:hover:bg-card'
+                    }`}
+                >
+                    {src.ctaLabel} <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                </button>
+            </div>
+        </div>
+    )
+}
+
+// ─── sc-S.1 · Phase 1B · Processing animation (left panel) ──────────────────
+function SalesProcessingView() {
+    const [stepIdx, setStepIdx] = useState(0)
+
+    useEffect(() => {
+        const timers: ReturnType<typeof setTimeout>[] = []
+        let cumulative = 0
+        SALES_INTAKE_PROCESSING_STEPS.forEach((s, i) => {
+            cumulative += s.durationMs
+            timers.push(setTimeout(() => {
+                if (i < SALES_INTAKE_PROCESSING_STEPS.length - 1) {
+                    setStepIdx(i + 1)
+                } else {
+                    writeIntakePhase('refining')
+                }
+            }, cumulative))
+        })
+        return () => timers.forEach(clearTimeout)
+    }, [])
+
+    return (
+        <SalesPreviewShell icon={Loader2} filename="strata-processing" statusBadge={{ label: 'Processing', tone: 'info' }}>
+            <div className="rounded-xl border border-ai/30 bg-ai/5 px-3 py-2.5 flex items-start gap-2">
+                <Sparkles className="h-4 w-4 text-ai shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="text-[12px] text-foreground leading-relaxed">
+                    <span className="font-bold text-ai">Strata AI · </span>
+                    Drafting the opp record from picked source. Hold tight · ~1.5s.
+                </div>
+            </div>
+            <ul className="space-y-2">
+                {SALES_INTAKE_PROCESSING_STEPS.map((s, i) => {
+                    const isActive = i === stepIdx
+                    const isDone = i < stepIdx
+                    return (
+                        <li key={s.label} className={`rounded-xl border bg-card p-3 flex items-start gap-3 transition-colors ${
+                            isActive ? 'border-ai/40' : isDone ? 'border-success/30' : 'border-border'
+                        }`}>
+                            <div className="shrink-0 mt-0.5">
+                                {isDone ? (
+                                    <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />
+                                ) : isActive ? (
+                                    <Loader2 className="h-4 w-4 text-ai animate-spin" aria-hidden="true" />
+                                ) : (
+                                    <div className="h-4 w-4 rounded-full border border-border" />
+                                )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className={`text-[12px] font-semibold ${isDone || isActive ? 'text-foreground' : 'text-muted-foreground'}`}>{s.label}</div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5 italic">{s.detail}</div>
+                            </div>
+                        </li>
+                    )
+                })}
+            </ul>
+        </SalesPreviewShell>
+    )
+}
+
+// ─── sc-S.1 · Phase 1C/1D · DRAFT opp record with editable provenance ───────
+function SalesOppRecordDraftView({ phase }: { phase: 'refining' | 'saving' }) {
+    const opp = SALES_OPPORTUNITIES[0]
+    const source = useIntakeSource()
+    const sourceLabel = source === 'link-copper' ? 'Hayes Construction (Copper)'
+                      : source === 'upload-pdf'  ? 'Uploaded PDF'
+                      : 'email thread'
+
+    // Inline edits over the 5 provenance fields. Local state only · resets on F5.
+    const [edits, setEdits] = useState<Record<string, string>>({})
+    const [editingField, setEditingField] = useState<string | null>(null)
+    const [draftValue, setDraftValue] = useState<string>('')
+
+    const startEdit = (label: string, current: string) => {
+        setEditingField(label)
+        setDraftValue(edits[label] ?? current)
+    }
+    const saveEdit = (label: string, original: string) => {
+        if (draftValue.trim() === '' || draftValue === original) {
+            setEdits(prev => { const next = { ...prev }; delete next[label]; return next })
+        } else {
+            setEdits(prev => ({ ...prev, [label]: draftValue }))
+        }
+        setEditingField(null)
+    }
+    const cancelEdit = () => setEditingField(null)
+
+    return (
+        <SalesPreviewShell
+            icon={FileText}
+            filename={`opp-${opp.projectCode}.json`}
+            size="6 KB"
+            statusBadge={{ label: phase === 'saving' ? 'Saving to Copper…' : 'DRAFT · pending save', tone: 'warning' }}
+        >
+            {phase === 'saving' && (
+                <div className="rounded-xl border border-ai/30 bg-ai/5 p-3 flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 text-ai animate-spin" aria-hidden="true" />
+                    <span className="text-[12px] font-semibold text-foreground">Saving opp record to Copper…</span>
+                </div>
+            )}
+
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <div className="px-4 py-3 bg-muted/30 border-b border-border">
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                        Opportunity record (Strata draft · awaiting Save)
+                    </div>
+                    <div className="text-sm font-bold text-foreground mt-0.5">{edits['Company'] ?? opp.company}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                        {opp.projectCode} · drafted from {sourceLabel}
+                    </div>
+                </div>
+                <ul className="divide-y divide-border">
+                    {SALES_OPP_EXTRACTED_SNIPPETS.map(f => {
+                        const isEditing = editingField === f.label
+                        const current = edits[f.label] ?? f.value
+                        const wasEdited = edits[f.label] !== undefined
+                        return (
+                            <li key={f.label} className="px-4 py-2 text-[11px]">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground w-24 shrink-0">{f.label}</span>
+                                    {isEditing ? (
+                                        <>
+                                            <input
+                                                type="text"
+                                                value={draftValue}
+                                                onChange={e => setDraftValue(e.target.value)}
+                                                className="flex-1 rounded border border-ai/40 bg-card text-foreground text-[11px] px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-ai/40"
+                                                autoFocus
+                                            />
+                                            <button type="button" onClick={() => saveEdit(f.label, f.value)} className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded bg-success/15 text-success hover:bg-success/25 transition-colors" aria-label="Save edit">
+                                                <Check className="h-3 w-3" aria-hidden="true" />
+                                            </button>
+                                            <button type="button" onClick={cancelEdit} className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded bg-muted text-muted-foreground hover:bg-muted/70 transition-colors" aria-label="Cancel edit">
+                                                <X className="h-3 w-3" aria-hidden="true" />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-foreground font-medium flex-1">{current}</span>
+                                            <button type="button" onClick={() => startEdit(f.label, f.value)} className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" aria-label={`Edit ${f.label}`}>
+                                                <Pencil className="h-3 w-3" aria-hidden="true" />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                                {wasEdited && !isEditing && (
+                                    <div className="ml-[6.5rem] mt-0.5 text-[10px] text-muted-foreground italic">
+                                        Edited · was &quot;{f.value}&quot;
+                                    </div>
+                                )}
+                                {!wasEdited && !isEditing && (
+                                    <div className="ml-[6.5rem] mt-0.5 text-[10px] text-muted-foreground italic flex items-center gap-1">
+                                        <Sparkles className="h-2.5 w-2.5 text-ai" aria-hidden="true" />
+                                        Strata · confidence {f.confidence}
+                                    </div>
+                                )}
+                            </li>
+                        )
+                    })}
+                    {/* Static fields · not editable */}
+                    <li className="px-4 py-2 flex items-center justify-between text-[11px]"><span className="text-muted-foreground">Copper stage</span><span className="text-foreground">25% · Actively pursuing</span></li>
+                    <li className="px-4 py-2 flex items-center justify-between text-[11px]"><span className="text-muted-foreground">Days in stage</span><span className="text-foreground">0 · today</span></li>
+                    <li className="px-4 py-2 flex items-center justify-between text-[11px]"><span className="text-muted-foreground">Spec attached</span><span className="text-foreground">no · PDF floor plan only</span></li>
+                    <li className="px-4 py-2 flex items-center justify-between text-[11px]"><span className="text-muted-foreground">Works form</span><span className="text-foreground">incomplete · 4 to clarify</span></li>
+                </ul>
+            </div>
+
+            <div className="text-[10px] text-muted-foreground italic px-1 flex items-center gap-1">
+                <Sparkles className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                Source: drafted by Strata · awaiting Save click to commit to Copper.
             </div>
         </SalesPreviewShell>
     )

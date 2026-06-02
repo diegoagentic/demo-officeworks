@@ -333,16 +333,12 @@ const OFFICEWORKS_STEP_NOTIFICATIONS: Record<string, OwStepNotif> = {
         event: 'officeworks:sales-inbox-ingest',
         footerText: 'Inbox triage pending',
     },
-    'sc-S.1': {
-        badge: '1 new', badgeColor: 'warning',
-        title: 'New opportunity · MANATT-4F · Works form 4/9 missing',
-        desc: 'Strata extracted company + size + budget hint from thread. Pre-flight check flagged 4 missing Works-form fields BEFORE submit · saves the 75-80% incomplete cycle.',
-        sender: 'Strata AI · Opportunity Intake',
-        re: 'MANATT-4F · pre-flight check · 4 fields missing',
-        cta: 'Open opp record →',
-        event: 'officeworks:sales-intake-open',
-        footerText: 'Opportunity intake pending',
-    },
+    // sc-S.1 · NO notification · the Sales Manager just created this opp record
+    // via their Intake action in sc-S.0 · sending them a "new opportunity"
+    // notification about something they just created themselves is redundant.
+    // The modal continues open into stage `sales-intake` as a continuation of
+    // the Intake action · the `officeworks:sales-intake-open` listener in
+    // OfficeworksPage stays wired in case external code needs to re-open it.
     'sc-S.2': {
         badge: '1 new', badgeColor: 'ai',
         title: 'Rep capacity ledger ready · 5 reps · Mid-Atlantic',

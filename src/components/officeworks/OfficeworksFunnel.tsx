@@ -25,7 +25,7 @@ import {
 } from './shared/manattLaborData'
 import { SALES_ACTOR, SALES_OPPORTUNITIES, SALES_VOLUME_FACTS, SALES_INBOX_THREADS } from './shared/manattSalesData'
 import { useOfficeworksVertical } from './shared/verticalSignal'
-import { useIntakenThreads, resetIntakenThreads, writeSelectedThread, writeShowNewArrival, MANATT_THREAD_ID } from './shared/salesInboxSignal'
+import { useIntakenThreads, resetIntakenThreads, writeSelectedThread, writeShowNewArrival, writeIntakePhase, writeIntakeSource, MANATT_THREAD_ID } from './shared/salesInboxSignal'
 import CapacityModal from './CapacityModal'
 
 // ─── Funnel columns · per flow ────────────────────────────────────────────────
@@ -323,6 +323,14 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
         }
         window.addEventListener('officeworks:sales-inbox-ingest', open)
         return () => window.removeEventListener('officeworks:sales-inbox-ingest', open)
+    }, [isSales, currentStep?.id])
+
+    // Sales sc-S.1 · reset the 2-phase intake state on entry so F5 / Back
+    // replay starts at the source picker · this also clears the picked source.
+    useEffect(() => {
+        if (!isSales || currentStep?.id !== 'sc-S.1') return
+        writeIntakePhase('source-pick')
+        writeIntakeSource(null)
     }, [isSales, currentStep?.id])
 
     // Non-MANATT emails added to the funnel · rendered as Triage pipeline cards.

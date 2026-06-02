@@ -673,3 +673,172 @@ export const SALES_STAGE_PAINPOINT_CHIPS: Record<string, { id: string; label: st
     'sc-S.6': { id: 'PP S6', label: 'Proposal ~6h in stops and starts · spec missing' },
     'sc-S.7': { id: 'PP S7', label: 'Post-award handoff = 2 manual steps · coordinator routinely missed' },
 }
+
+// ─── sc-S.1 · Provenance · what Strata pulled from THREAD-SIT-001.EML ────────
+// Used by SalesOppIntakePanel to show source-of-truth for each pre-filled
+// Works form field. Anchors the painpoint S2 (75-80% incomplete) by making
+// transparent what was extracted vs what still needs clarification.
+
+export type ExtractedConfidence = 'high' | 'med' | 'low'
+
+export interface ExtractedField {
+    label: string
+    value: string
+    snippet: string
+    confidence: ExtractedConfidence
+}
+
+export const SALES_OPP_EXTRACTED_SNIPPETS: ExtractedField[] = [
+    {
+        label: 'Company',
+        value: 'MANATT Phelps & Phillips',
+        snippet: 'email signature · "Caitlin Barolet · Senior Workplace Strategist · MANATT Phelps & Phillips"',
+        confidence: 'high',
+    },
+    {
+        label: 'Est value range',
+        value: '$1,541k',
+        snippet: 'paragraph 2 · "ballpark $1.5M furniture-only, before any wall reconfig"',
+        confidence: 'med',
+    },
+    {
+        label: 'Vertical',
+        value: 'furniture',
+        snippet: 'paragraph 1 · "furniture refresh, existing walls remain"',
+        confidence: 'high',
+    },
+    {
+        label: 'Market',
+        value: 'DC',
+        snippet: 'paragraph 1 · "DC office · 4th floor · 21,800 sf"',
+        confidence: 'high',
+    },
+    {
+        label: 'Account type',
+        value: 'gc-referral',
+        snippet: 'paragraph 4 · "referred by Hayes Construction · GC on the build-out"',
+        confidence: 'med',
+    },
+]
+
+// ─── sc-S.1 · Phase 1A · Source picker (2 options per BPMN AI-triage agent) ──
+// Anchored to BPMN TO-BE Enhanced element "Link to Copper opp (if matched)".
+// The Sales Lead picks one of these 2 enrichment paths AFTER the inbox triage
+// (sc-S.0) and BEFORE Strata's draft opp record is shown.
+
+export type IntakeSourceId = 'link-copper' | 'upload-pdf'
+export type IntakeSourceConfidence = 'recommended' | 'possible'
+
+export interface IntakeSourceCard {
+    id: IntakeSourceId
+    label: string
+    description: string
+    iconKind: 'database' | 'file'
+    confidence: IntakeSourceConfidence
+    matchLabel: string
+    matchNote: string
+    matchTone: 'success' | 'neutral'
+    // Demo simulation payload · what the rep would paste/upload IRL.
+    demoUrl?: string
+    demoFile?: { name: string; size: string }
+    ctaLabel: string
+}
+
+export const SALES_INTAKE_SOURCES: IntakeSourceCard[] = [
+    {
+        id: 'link-copper',
+        label: 'Link to existing Copper opp',
+        description: 'Paste the Copper opp URL · Strata scrapes the account history, contacts, and prior wins to enrich the new opp.',
+        iconKind: 'database',
+        confidence: 'recommended',
+        matchLabel: 'Hayes Construction · GC referrer · 3 prior projects',
+        matchNote: 'Strata found Hayes Construction in Copper · MANATT-4F is net-new but linkable via the GC.',
+        matchTone: 'success',
+        demoUrl: 'https://app.copper.com/accounts/hayes-construction/opp/manatt-4f-net-new',
+        ctaLabel: 'Extract',
+    },
+    {
+        id: 'upload-pdf',
+        label: 'Upload PDF from Copper export',
+        description: 'Drop a Copper PDF export (account history, prior proposal, RFI) · Strata parses it and merges fields into the draft record.',
+        iconKind: 'file',
+        confidence: 'possible',
+        matchLabel: 'Drop PDF here · or click to use the demo file',
+        matchNote: 'Strata parses Copper-exported PDFs and merges fields into the draft record.',
+        matchTone: 'neutral',
+        demoFile: { name: 'manatt-4f-account-history.pdf', size: '2.4 MB' },
+        ctaLabel: 'Extract',
+    },
+]
+
+// ─── sc-S.1 · Phase 1B · Processing animation steps ───────────────────────────
+// Cascade timing for the spinner → check animation between source pick and the
+// refined view. Total ~1.5s.
+
+export interface IntakeProcessingStep {
+    label: string
+    detail: string
+    durationMs: number
+}
+
+export const SALES_INTAKE_PROCESSING_STEPS: IntakeProcessingStep[] = [
+    { label: 'Extracting fields from email thread', detail: 'From THREAD-SIT-001 · MANATT-4F', durationMs: 400 },
+    { label: 'Enriching from Copper account history', detail: 'Found Hayes Construction · 3 prior projects', durationMs: 500 },
+    { label: 'Generating draft opp record', detail: 'Confidence 92% · 4 fields to clarify', durationMs: 600 },
+]
+
+// ─── sc-S.1 · Strata-drafted clarification email · drafts only ───────────────
+// Per CLAUDE.md rule + HTML BPMN PP S3 enhanced flow ("Draft reply · send-as-rep,
+// not auto-send"). The Sales Lead reviews and sends. Strata never auto-sends.
+
+export const SALES_OPP_CLARIFICATION_DRAFT = {
+    to: 'Caitlin Barolet <cbarolet@manatt.com>',
+    subject: 'RE: MANATT 4th Floor refresh · a few details to finalize the scope',
+    body: [
+        'Caitlin,',
+        '',
+        "Thanks for the heads-up on the MANATT-4F refresh — we're ready to start scoping. To pre-flight our Works form and keep the design team off the rework cycle, can you confirm:",
+        '',
+        "  1. CAD file · do you have an existing DWG for the 4th floor we can build off? (If only a PDF floor plan exists we'll need to commission a digitization.)",
+        '  2. SQ number · any prior Officeworks engagement we should link this to?',
+        '  3. Scope detail · ~120 workstations, refresh-only OR include private offices?',
+        "  4. Move-in date · is summer 2026 confirmed? We'd lock to 2026-08-30 by default.",
+        '',
+        "Will keep this opp moving on our side meanwhile. Reply by EOD Friday and we'll have your assigned designer on a kickoff call early next week.",
+        '',
+        'Best,',
+        '[Sales Lead]',
+    ].join('\n'),
+} as const
+
+// ─── sc-S.1 · Strata insights surfaced in the right panel (Phase 1C/refining)
+// Anchored to AS-IS docs:
+//   - Confidence + Time saved derived from SALES_VOLUME_FACTS + Spec Check 30-Apr
+//   - Pattern match anchored to SALES_INTAKE_SOURCES Hayes Construction match
+//   - Forward look references sc-S.2 (capacity) + sc-S.3 (assignment SLA)
+//   - Next best actions cite BPMN PP S3 + sc1.0b Spec Check intake bridge.
+
+export const SALES_OPP_INTAKE_INSIGHTS = {
+    confidence: {
+        pct: 92,
+        detail: '5 of 9 fields auto-filled from email + Copper',
+    },
+    timeSaved: {
+        hoursMin: 8,
+        hoursMax: 12,
+        detail: 'avoids 2-3 design revision cycles · ~4h each',
+    },
+    patternMatch: {
+        title: 'GC-referral · furniture · DC',
+        detail: 'Hayes Construction · 3 prior wins · 2 of 3 similar opps needed CAD clarification before kickoff.',
+    },
+    forwardLook: [
+        '2 furniture-experienced designers available in DC next week (sc-S.3 preview)',
+        '33% historical SLA-breach rate on first-touch opps · pre-flight cuts the cycle ~50%',
+    ],
+    nextBestActions: [
+        'Send clarification draft to Caitlin (CAD · SQ · scope · timeline)',
+        'Link Hayes Construction GC contact in Copper for downstream attribution',
+        'Preview Spec Check intake template (sc1.0b) so the design team has context',
+    ],
+} as const

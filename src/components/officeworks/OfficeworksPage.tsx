@@ -62,9 +62,14 @@ function stepIdToStage(stepId: string | undefined): OfficeworksReviewStage {
     }
 }
 
-// When validating these steps, keep the modal open so Flow 2 plays as a
-// continuous in-modal journey (Design BOM + Validation Doc + client approval → SQ).
-const STAYS_OPEN_WITHIN_FLOW2 = new Set(['sc1.2'])
+// When validating these steps, keep the modal open so the next step plays as a
+// continuous in-modal journey (vs the default close + 200ms + nextStep cadence).
+// - sc1.2  · Flow 2 design BOM + Validation Doc + client approval → SQ.
+// - sc-S.0 · Sales Manager just intaked MANATT · sc-S.1 (pre-flight check) is a
+//   continuation of that action · sending them an "intake pending" notification
+//   for an opp they just created themselves is redundant (notification entry
+//   removed from ActionCenter).
+const STAYS_OPEN_WITHIN_FLOW2 = new Set(['sc1.2', 'sc-S.0'])
 
 // ─── Officeworks notification events (dispatched by ActionCenter) ─────────────
 // Per P52 contract: every officeworks: custom event opens the review modal.

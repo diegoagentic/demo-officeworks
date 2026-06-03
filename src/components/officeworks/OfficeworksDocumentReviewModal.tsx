@@ -7303,6 +7303,33 @@ function RepCapacityLedger({
 }
 
 // ─── sc-S.3 · Handoff briefing (assigned rep accepts + starts qualification) ─
+// Pre-accept clarification draft · rep → Sales Lead · BPMN PP7 (S7) the
+// orchestrator gate. Sent before the rep accepts so the 24/48h SLA hasn't
+// started yet — see successSubtitle for the no-blocking framing.
+const ASK_MANAGER_MESSAGE = `Hi,
+
+Before I accept MANATT-4F and start the 24h qualify clock, two quick things:
+
+  · Rationale · I'm at optimal load — was the AT/load tradeoff weighed vs rep-c (ATL, available)? Just want to make sure we're picking right, not by territory default.
+  · GC referral · Hayes Construction sourced this — do we already have a relationship there, or should I treat the GC angle as cold?
+
+Will accept as soon as I hear back — no need to escalate.
+
+— Sales Rep · DC + NoVA`
+
+// Pre-accept scope confirmation · rep → client · grounded in the 4 fields
+// already resolved in sc-S.1 (refresh-only, ~120 stations, 2026-08-30). Rep
+// just wants explicit confirmation before committing to the SLA window.
+const ASK_CLIENT_MESSAGE = `Hi Caitlin,
+
+I've been assigned to the MANATT 4th Floor refresh and I'm reviewing what we have before kicking off qualification. One thing I'd like to lock down before we start:
+
+  · Scope · the brief shows 120 workstations refresh-only · no private offices and no demising-wall work. Can you confirm that's still the intent, or is anything moving since you submitted the Works form?
+
+Once confirmed I'll set up the kickoff call and walk you through the qualify questions. Thanks for the quick turnaround on the CAD + SQ earlier.
+
+— Sales Rep · DC + NoVA`
+
 // The rep (not the Sales Lead) lands here after sc-S.2 assignment. Strata
 // briefs them on why they were picked, what was extracted from the inbox, the
 // SLA gates they're now accountable for, and a suggested first-touch action.
@@ -7315,6 +7342,15 @@ function SalesAssignmentPanel({ onValidate }: LDPanelProps) {
     const priorManattCount = rep.priorWinsWithAccount.MANATT ?? 0
     const qualifyHours = isPriority ? 12 : 24
     const proposalHours = isPriority ? 24 : 48
+
+    // Pre-accept consultation · rep can ask Sales Lead or client before
+    // accepting · doesn't block the primary CTA · SLA hasn't started yet.
+    const [openConsultDialog, setOpenConsultDialog] = useState<null | 'manager' | 'client'>(null)
+    const [consultedManager, setConsultedManager] = useState(false)
+    const [consultedClient, setConsultedClient] = useState(false)
+    const repTerritorySlug = rep.territory.split(' · ')[0].toLowerCase().replace(/\s+/g, '-')
+    const repEmail = `sales-rep-${repTerritorySlug}@officeworks.com`
+    const salesLeadEmail = `sales-lead-${rep.regionGroup}@officeworks.com`
 
     return (
         <>
@@ -7416,6 +7452,64 @@ function SalesAssignmentPanel({ onValidate }: LDPanelProps) {
                     </div>
                 </div>
 
+                {/* 3b · Pre-accept consultation · BPMN PP7 gate · rep can clarify before SLA starts */}
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                    <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center gap-2">
+                        <MessageSquare className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">Need clarification before accepting?</span>
+                        <span className="ml-auto text-[10px] text-muted-foreground italic">SLA hasn't started yet</span>
+                    </div>
+                    <ul className="divide-y divide-border">
+                        <li className="px-4 py-2.5 flex items-center gap-2 text-[11px]">
+                            <Mail className="h-3.5 w-3.5 text-foreground shrink-0" aria-hidden="true" />
+                            <div className="flex-1 min-w-0">
+                                <div className="text-foreground">Ask Sales Lead · clarify rationale or AT load tradeoff</div>
+                                <div className="text-[10px] text-muted-foreground">Strata pre-drafted · review &amp; send</div>
+                            </div>
+                            {consultedManager ? (
+                                <span className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-success/10 text-success border border-success/20">
+                                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                                    Pending response
+                                </span>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setOpenConsultDialog('manager')}
+                                    aria-label="Open draft to ask Sales Lead before accepting"
+                                    className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[10px] font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
+                                >
+                                    Open draft
+                                </button>
+                            )}
+                        </li>
+                        <li className="px-4 py-2.5 flex items-center gap-2 text-[11px]">
+                            <Mail className="h-3.5 w-3.5 text-foreground shrink-0" aria-hidden="true" />
+                            <div className="flex-1 min-w-0">
+                                <div className="text-foreground">Ask client · confirm refresh-only scope before kickoff</div>
+                                <div className="text-[10px] text-muted-foreground">Strata pre-drafted · grounded in resolved Works form</div>
+                            </div>
+                            {consultedClient ? (
+                                <span className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-success/10 text-success border border-success/20">
+                                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                                    Pending response
+                                </span>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setOpenConsultDialog('client')}
+                                    aria-label="Open draft to ask client to confirm scope before accepting"
+                                    className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[10px] font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
+                                >
+                                    Open draft
+                                </button>
+                            )}
+                        </li>
+                    </ul>
+                    <div className="px-4 py-2 text-[10px] text-muted-foreground italic border-t border-border">
+                        Drafts only · you review and send · accepting later is still one click.
+                    </div>
+                </div>
+
                 {/* 4 · Suggested first-touch */}
                 <div className="rounded-xl border border-ai/30 bg-ai/5 overflow-hidden">
                     <div className="px-4 py-2.5 bg-card border-b border-ai/20 flex items-center gap-2">
@@ -7455,6 +7549,56 @@ function SalesAssignmentPanel({ onValidate }: LDPanelProps) {
                     ? `Priority opp · expedited ${qualifyHours}h/${proposalHours}h SLA · auto-escalates to Sales Manager if breached.`
                     : `${qualifyHours}h qualify / ${proposalHours}h proposal SLA starts on accept · auto-escalates if breached.`
                 }
+            />
+
+            {/* Pre-accept consultation dialogs · only the matching one renders */}
+            <RequestInfoDialog
+                isOpen={openConsultDialog === 'manager'}
+                onSent={() => { setOpenConsultDialog(null); setConsultedManager(true) }}
+                onClose={() => setOpenConsultDialog(null)}
+                headerAvatar="SL"
+                headerLabel={`Sales Lead · ${region?.label ?? rep.regionGroup}`}
+                headerSubtitle={`${salesLeadEmail} · Pre-accept clarification`}
+                defaults={{
+                    from: repEmail,
+                    to: salesLeadEmail,
+                    cc: 'sales-ops@officeworks.com',
+                    date: '2026-05-13 · 12:14 PM',
+                    subject: 'MANATT-4F · pre-accept · rationale + AT load question',
+                    message: ASK_MANAGER_MESSAGE,
+                    alertTitle: 'Pre-accept clarification',
+                    alertRows: [
+                        { label: 'Opp',      value: `MANATT-4F · ~$${(opp.estValueUSD / 1_000_000).toFixed(2)}M est · ${opp.market}` },
+                        { label: 'Rep',      value: `${rep.label} · ${rep.capacityFlag} load · ${rep.quotaProgressPct}% quota` },
+                        { label: 'SLA gate', value: 'Not yet started · accept pauses until reply' },
+                    ],
+                    successTitle: 'Sent to Sales Lead',
+                    successSubtitle: 'Typical reply same business day · SLA still un-started · accept when ready',
+                }}
+            />
+            <RequestInfoDialog
+                isOpen={openConsultDialog === 'client'}
+                onSent={() => { setOpenConsultDialog(null); setConsultedClient(true) }}
+                onClose={() => setOpenConsultDialog(null)}
+                headerAvatar="CB"
+                headerLabel="Salesperson · DC market"
+                headerSubtitle="caitlin.barolet@manatt.com · Pre-accept scope confirm"
+                defaults={{
+                    from: repEmail,
+                    to: 'caitlin.barolet@manatt.com',
+                    cc: salesLeadEmail,
+                    date: '2026-05-13 · 12:14 PM',
+                    subject: 'MANATT 4th Floor · quick scope confirm before we kick off',
+                    message: ASK_CLIENT_MESSAGE,
+                    alertTitle: 'Scope confirmation · pre-kickoff',
+                    alertRows: [
+                        { label: 'Client',   value: 'Manatt Phelps & Phillips LLP' },
+                        { label: 'Project',  value: 'MANATT · 4th Floor · ~120 stations refresh' },
+                        { label: 'Question', value: 'Confirm refresh-only · no private offices · no demising-wall work' },
+                    ],
+                    successTitle: 'Sent to Caitlin',
+                    successSubtitle: 'Awaiting confirmation · SLA still un-started · accept when ready',
+                }}
             />
         </>
     )

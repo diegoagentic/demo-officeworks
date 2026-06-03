@@ -910,6 +910,65 @@ export const SALES_OPP_CLARIFICATION_DRAFT = {
     ].join('\n'),
 } as const
 
+// ─── sc-S.4 · Client clarification draft (request from Caitlin) ──────────────
+// Sent to the client to fill the 2 missing MEDDIC fields (Decision criteria +
+// Champion). Drafts only · the rep reviews and sends · BPMN PP5 (S3) "Draft
+// reply send-as-rep, not auto-send" pattern.
+
+export const SALES_DISCOVERY_CLIENT_CLARIFICATION_DRAFT = {
+    to: 'Caitlin Barolet <cbarolet@manatt.com>',
+    subject: 'MANATT-4F · 2 quick questions before we draft the proposal',
+    body: [
+        'Caitlin,',
+        '',
+        'Working through the proposal scope for MANATT-4F and want to make sure we tee it up right. Two quick questions before we send:',
+        '',
+        '  1. Decision criteria · what factors will you and the team weigh most when comparing our proposal vs others? (e.g. Teknion product fit, install timeline, GSA pricing depth, sustainability cert)',
+        '',
+        '  2. Champion · besides yourself, who internally at MANATT will help drive this through the COO sign-off? Someone we should loop into the proposal presentation early on?',
+        '',
+        'Quick reply this week keeps us on track for the 14-May quote target.',
+        '',
+        'Best,',
+        '[Sales Rep · DC + NoVA]',
+    ].join('\n'),
+} as const
+
+// ─── sc-S.4 · Manager escalation draft (ask for help filling MEDDIC gaps) ────
+// Sent internally to the Sales Manager when the rep is blocked on enterprise
+// qualification · BPMN PP7 (S7) escalation path "Reminder → escalate to manager
+// if SLA breached" · drafts only · the rep reviews and sends.
+
+export const SALES_DISCOVERY_MANAGER_ESCALATION_DRAFT = {
+    to: 'Sales Manager · Mid-Atlantic',
+    subject: 'MANATT-4F · need a hand on MEDDIC gaps before 14-May quote',
+    body: [
+        'Hi,',
+        '',
+        'Quick request on MANATT-4F discovery before I push the proposal forward.',
+        '',
+        'Context:',
+        '  · Opp $1.5M furniture refresh · DC office · 14 weeks out (move-in 2026-08-30)',
+        '  · Authority: Caitlin Barolet (facilities lead) · COO sign-off pending',
+        '  · Hayes Construction is GC referrer · CBRE owns the portal',
+        '',
+        'What I have:',
+        '  · BANT 4/4 (Budget · Authority · Need · Timing all filled with medium-to-high confidence)',
+        '  · MEDDIC 4/6 (Metrics · Economic buyer · Decision process · Pain identified)',
+        '',
+        'What I am missing (blocking proposal):',
+        '  · Decision criteria · what is MANATT actually optimizing for in vendor selection?',
+        '  · Champion · who else inside MANATT can carry water for us through the COO sign-off?',
+        '',
+        'Two asks:',
+        '  1. Any prior MANATT context I should pull from (especially the 9F NYC deal in 2023)?',
+        '  2. Want to do a 15-min call to brainstorm the champion play before I push the proposal?',
+        '',
+        'Thanks,',
+        '[Sales Rep · DC + NoVA]',
+    ].join('\n'),
+} as const
+
 // ─── sc-S.1 · Strata insights surfaced in the right panel (Phase 1C/refining)
 // Anchored to AS-IS docs:
 //   - Confidence + Time saved derived from SALES_VOLUME_FACTS + Spec Check 30-Apr
@@ -940,4 +999,49 @@ export const SALES_OPP_INTAKE_INSIGHTS = {
         'Link Hayes Construction GC contact in Copper for downstream attribution',
         'Preview Spec Check intake template (sc1.0b) so the design team has context',
     ],
+} as const
+
+// ─── sc-S.4 · Account history evidence (pulled from Copper for Discovery) ────
+// Used by SalesAccountHistoryPreview in the sc-S.4 LEFT panel · evidence pack
+// the assigned rep reviews while filling the BANT + MEDDIC checklist on the
+// RIGHT. Anchored to AS-IS narrative: prior wins are the strongest signal of
+// the buyer's preferences, decision cadence, and GC channel relationships.
+
+export interface MANATTPriorProject {
+    code: string
+    market: string
+    vertical: string
+    valueUSD: number
+    year: number
+    cycleWeeks: number
+    contact: string
+    outcome: 'won' | 'lost' | 'on-hold'
+}
+
+export interface AccountReferrer {
+    name: string
+    relationship: string
+    priorRoutedProjects: number
+    avgCycleWeeks: number
+    onTimeResponsePct: number
+    lastEngagement: string
+}
+
+export const MANATT_ACCOUNT_HISTORY = {
+    accountId: 'acc-manatt',
+    accountName: 'MANATT Phelps & Phillips',
+    priorProjects: [
+        { code: 'MANATT-3F',       market: 'DC',  vertical: 'furniture refresh',         valueUSD: 1_200_000, year: 2024, cycleWeeks: 6, contact: 'Caitlin Barolet',     outcome: 'won' },
+        { code: 'MANATT-9F',       market: 'NYC', vertical: 'private offices buildout',  valueUSD: 2_400_000, year: 2023, cycleWeeks: 9, contact: 'David Kim (former)',  outcome: 'won' },
+        { code: 'MANATT-1F-lobby', market: 'DC',  vertical: 'walls + reception desk',    valueUSD:   460_000, year: 2023, cycleWeeks: 5, contact: 'Caitlin Barolet',     outcome: 'won' },
+    ] as MANATTPriorProject[],
+    accountNotes: 'MANATT prefers Teknion line · GSA pricing always required · Caitlin escalates if response > 24h · CBRE is the most common GC partner.',
+    referrer: {
+        name: 'Hayes Construction',
+        relationship: 'GC referrer · funnel owner',
+        priorRoutedProjects: 3,
+        avgCycleWeeks: 7,
+        onTimeResponsePct: 100,
+        lastEngagement: '2025-11',
+    } as AccountReferrer,
 } as const

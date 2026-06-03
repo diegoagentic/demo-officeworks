@@ -39,9 +39,11 @@ import {
     SALES_HANDOFF_PACKET, SALES_HANDOFF_ROUTES,
     SALES_STAGE_AI_BANNER, SALES_STAGE_PAINPOINT_CHIPS,
     SALES_OPP_EXTRACTED_SNIPPETS, SALES_OPP_CLARIFICATION_DRAFT,
+    SALES_DISCOVERY_CLIENT_CLARIFICATION_DRAFT, SALES_DISCOVERY_MANAGER_ESCALATION_DRAFT,
     SALES_OPP_INTAKE_INSIGHTS,
     SALES_INTAKE_SOURCES, SALES_INTAKE_PROCESSING_STEPS,
     SALES_REP_RECOMMENDATION, SALES_REP_REGION_GROUPS,
+    MANATT_ACCOUNT_HISTORY,
     type SalesInboxThread, type SalesRep,
     type IntakeSourceCard,
 } from './shared/manattSalesData'
@@ -215,6 +217,7 @@ const DOC_TABS = [
     { id: 'sales-capacity-ledger' as const,   icon: Users,          label: 'Capacity Ledger' },
     { id: 'sales-assignment' as const,        icon: UserCheck,      label: 'Assignment' },
     { id: 'sales-discovery-notes' as const,   icon: ClipboardCheck, label: 'Discovery Notes' },
+    { id: 'sales-account-history' as const,   icon: Award,          label: 'Account History' },
     { id: 'sales-outreach-draft' as const,    icon: Send,           label: 'Outreach Draft' },
     { id: 'sales-proposal-pdf' as const,      icon: FileText,       label: 'Proposal PDF' },
     { id: 'sales-quote-detail' as const,      icon: DollarSign,     label: 'Quote Detail' },
@@ -247,8 +250,8 @@ const STAGE_TABS: Partial<Record<OfficeworksReviewStage, DocTab[]>> = {
     'sales-inbox':       ['sales-thread-detail'],
     'sales-intake':      ['sales-opp-record', 'sales-thread-detail'],
     'sales-capacity':    ['sales-capacity-ledger', 'sales-opp-record'],
-    'sales-assign':      ['sales-assignment', 'sales-capacity-ledger'],
-    'sales-discovery':   ['sales-discovery-notes', 'sales-opp-record'],
+    'sales-assign':      ['sales-opp-record', 'sales-thread-detail'],
+    'sales-discovery':   ['sales-thread-detail', 'sales-account-history', 'sales-opp-record'],
     'sales-outreach':    ['sales-outreach-draft', 'sales-thread-detail'],
     'sales-proposal':    ['sales-proposal-pdf', 'sales-quote-detail', 'sales-outreach-draft'],
     'sales-handoff':     ['sales-handoff-packet', 'sales-win-loss'],
@@ -289,8 +292,8 @@ const DEFAULT_DOC: Record<OfficeworksReviewStage, DocTab> = {
     'sales-inbox':       'sales-thread-detail',
     'sales-intake':      'sales-opp-record',
     'sales-capacity':    'sales-capacity-ledger',
-    'sales-assign':      'sales-assignment',
-    'sales-discovery':   'sales-discovery-notes',
+    'sales-assign':      'sales-opp-record',
+    'sales-discovery':   'sales-thread-detail',
     'sales-outreach':    'sales-outreach-draft',
     'sales-proposal':    'sales-proposal-pdf',
     'sales-handoff':     'sales-handoff-packet',
@@ -636,6 +639,7 @@ function DocTabContent({ tab, stage, flowProgress }: { tab: DocTab; stage: Offic
     if (tab === 'sales-capacity-ledger')  return <SalesCapacityLedgerPreview />
     if (tab === 'sales-assignment')       return <SalesAssignmentPreview />
     if (tab === 'sales-discovery-notes')  return <SalesDiscoveryNotesPreview />
+    if (tab === 'sales-account-history')  return <SalesAccountHistoryPreview />
     if (tab === 'sales-outreach-draft')   return <SalesOutreachDraftPreview />
     if (tab === 'sales-proposal-pdf')     return <SalesProposalPDFPreview />
     if (tab === 'sales-quote-detail')     return <SalesQuoteDetailPreview />
@@ -7301,10 +7305,29 @@ function BriefingChip({ icon, label, detail, warn, neutralIfEmpty }: {
 }
 
 // ─── sc-S.4 · Discovery & Qualification ─────────────────────────────────────
+// Each row is editable (pencil → input + 3-pill confidence selector). Below
+// the MEDDIC card, when fields are still missing, a clarification action card
+// surfaces 2 buttons that open the shared EmailDraftModal with pre-drafted
+// emails: one to the client (PP5 send-as-rep pattern), one to the Sales
+// Manager (PP7 escalation pattern).
 function SalesDiscoveryPanel({ onValidate }: LDPanelProps) {
     const bant = SALES_DISCOVERY_TEMPLATE.filter(f => f.framework === 'BANT')
     const meddic = SALES_DISCOVERY_TEMPLATE.filter(f => f.framework === 'MEDDIC')
-    const missing = SALES_DISCOVERY_TEMPLATE.filter(f => !f.value)
+
+    // Local edits state · maps field key → { value, confidence }
+    const [edits, setEdits] = useState<Record<string, DiscoveryEdit>>({})
+    const handleEdit = (key: string, value: string, confidence: DiscoveryConfidence) => {
+        setEdits(prev => ({ ...prev, [key]: { value, confidence } }))
+    }
+
+    // Effective missing list considers edits (rep may have filled an originally missing field)
+    const missing = SALES_DISCOVERY_TEMPLATE.filter(f => {
+        const effectiveValue = edits[f.key]?.value ?? f.value ?? ''
+        return effectiveValue.trim().length === 0
+    })
+
+    // Clarification modal state · 2 paths (client | manager)
+    const [emailModal, setEmailModal] = useState<null | 'client' | 'manager'>(null)
 
     return (
         <>
@@ -7312,7 +7335,7 @@ function SalesDiscoveryPanel({ onValidate }: LDPanelProps) {
                 <SalesPanelHero
                     stage="sales-discovery"
                     title="Discovery & qualification checklist"
-                    subtitle="Strata auto-summarized the 7-message thread into BANT + MEDDIC · 2 fields missing"
+                    subtitle={`Strata auto-summarized the 7-message thread into BANT + MEDDIC · ${missing.length} field${missing.length === 1 ? '' : 's'} missing`}
                 />
 
                 <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -7322,7 +7345,7 @@ function SalesDiscoveryPanel({ onValidate }: LDPanelProps) {
                     </div>
                     <ul className="divide-y divide-border">
                         {bant.map(f => (
-                            <DiscoveryRow key={f.key} field={f} />
+                            <DiscoveryRow key={f.key} field={f} edits={edits} onEdit={handleEdit} />
                         ))}
                     </ul>
                 </div>
@@ -7339,41 +7362,195 @@ function SalesDiscoveryPanel({ onValidate }: LDPanelProps) {
                     </div>
                     <ul className="divide-y divide-border">
                         {meddic.map(f => (
-                            <DiscoveryRow key={f.key} field={f} />
+                            <DiscoveryRow key={f.key} field={f} edits={edits} onEdit={handleEdit} />
                         ))}
                     </ul>
                 </div>
+
+                {/* Resolve missing fields card · 2 clarification actions */}
+                {missing.length > 0 && (
+                    <div className="rounded-xl border border-warning/30 bg-warning/5 overflow-hidden">
+                        <div className="px-4 py-2.5 bg-card border-b border-warning/20 flex items-center gap-2">
+                            <AlertCircle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">
+                                Resolve missing fields · {missing.length} blocking proposal
+                            </span>
+                        </div>
+                        <ul className="px-4 py-2 text-[11px] text-foreground space-y-0.5">
+                            {missing.map(f => (
+                                <li key={f.key}>· {f.label}</li>
+                            ))}
+                        </ul>
+                        <div className="px-4 py-2.5 bg-card border-t border-warning/20 flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setEmailModal('client')}
+                                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[11px] font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                            >
+                                <Mail className="h-3 w-3" aria-hidden="true" />
+                                Request from client
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setEmailModal('manager')}
+                                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[11px] font-bold bg-card border border-border text-foreground hover:bg-muted transition-colors"
+                            >
+                                <Users className="h-3 w-3" aria-hidden="true" />
+                                Escalate to manager
+                            </button>
+                        </div>
+                        <div className="px-4 pb-2.5 text-[10px] text-muted-foreground italic">
+                            Drafts only · BPMN PP S3 (send-as-rep) + PP S7 (orchestrator escalation) · rep reviews and sends.
+                        </div>
+                    </div>
+                )}
 
                 <SalesSourceCite source={`PP S2 (BPMN) · salesperson guessing → 2-4 design revisions · ${SALES_VOLUME_FACTS.worksFormIncompletePctMin}-${SALES_VOLUME_FACTS.worksFormIncompletePctMax}% Works forms incomplete`} />
             </div>
             <SalesStickyCTA
                 label="Save discovery · proceed to outreach"
                 onClick={onValidate}
-                secondaryNote={missing.length > 0 ? `${missing.length} fields will be flagged on next sync · queue follow-up` : 'All fields captured'}
+                secondaryNote={missing.length > 0 ? `${missing.length} field${missing.length === 1 ? '' : 's'} will be flagged on next sync · queue follow-up` : 'All fields captured'}
+            />
+
+            {/* Client clarification email · sc-S.4 PP5 pattern */}
+            <EmailDraftModal
+                isOpen={emailModal === 'client'}
+                onClose={() => setEmailModal(null)}
+                onSent={() => setEmailModal(null)}
+                to={SALES_DISCOVERY_CLIENT_CLARIFICATION_DRAFT.to}
+                subject={SALES_DISCOVERY_CLIENT_CLARIFICATION_DRAFT.subject}
+                body={SALES_DISCOVERY_CLIENT_CLARIFICATION_DRAFT.body}
+            />
+
+            {/* Manager escalation email · sc-S.4 PP7 pattern */}
+            <EmailDraftModal
+                isOpen={emailModal === 'manager'}
+                onClose={() => setEmailModal(null)}
+                onSent={() => setEmailModal(null)}
+                to={SALES_DISCOVERY_MANAGER_ESCALATION_DRAFT.to}
+                subject={SALES_DISCOVERY_MANAGER_ESCALATION_DRAFT.subject}
+                body={SALES_DISCOVERY_MANAGER_ESCALATION_DRAFT.body}
             />
         </>
     )
 }
 
-function DiscoveryRow({ field }: { field: typeof SALES_DISCOVERY_TEMPLATE[number] }) {
-    const present = Boolean(field.value)
+type DiscoveryConfidence = 'high' | 'medium' | 'low'
+type DiscoveryEdit = { value: string; confidence: DiscoveryConfidence }
+
+function confidenceChipClass(c: DiscoveryConfidence) {
+    return c === 'high'   ? 'bg-success/10 text-success border border-success/20' :
+           c === 'medium' ? 'bg-warning/10 text-warning border border-warning/20' :
+                            'bg-muted text-muted-foreground border border-border'
+}
+
+function DiscoveryRow({
+    field,
+    edits,
+    onEdit,
+}: {
+    field: typeof SALES_DISCOVERY_TEMPLATE[number]
+    edits: Record<string, DiscoveryEdit>
+    onEdit: (key: string, value: string, confidence: DiscoveryConfidence) => void
+}) {
+    const edit = edits[field.key]
+    const effectiveValue = edit?.value ?? field.value ?? ''
+    const effectiveConfidence = edit?.confidence ?? (field.confidence as DiscoveryConfidence | undefined) ?? 'medium'
+    const present = Boolean(effectiveValue)
+    const wasEdited = edit !== undefined
+
+    const [isEditing, setIsEditing] = useState(false)
+    const [draftValue, setDraftValue] = useState<string>(effectiveValue)
+    const [draftConfidence, setDraftConfidence] = useState<DiscoveryConfidence>(effectiveConfidence)
+
+    const startEdit = () => {
+        setDraftValue(effectiveValue)
+        setDraftConfidence(effectiveConfidence)
+        setIsEditing(true)
+    }
+    const saveEdit = () => {
+        if (draftValue.trim().length === 0) return    // don't save empty
+        onEdit(field.key, draftValue.trim(), draftConfidence)
+        setIsEditing(false)
+    }
+    const cancelEdit = () => setIsEditing(false)
+
+    if (isEditing) {
+        return (
+            <li className="px-4 py-2.5 text-[11px]">
+                <div className="flex items-start gap-3">
+                    <span className="text-muted-foreground w-28 shrink-0 pt-1">{field.label}</span>
+                    <div className="flex-1 space-y-1.5 min-w-0">
+                        <input
+                            type="text"
+                            value={draftValue}
+                            onChange={e => setDraftValue(e.target.value)}
+                            placeholder="Add value..."
+                            className="w-full rounded border border-ai/40 bg-card text-foreground text-[11px] px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ai/40"
+                            autoFocus
+                        />
+                        <div className="flex items-center gap-1">
+                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold mr-1">Confidence:</span>
+                            {(['high', 'medium', 'low'] as DiscoveryConfidence[]).map(c => (
+                                <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() => setDraftConfidence(c)}
+                                    className={`text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 border transition-colors ${
+                                        draftConfidence === c
+                                            ? confidenceChipClass(c)
+                                            : 'bg-card text-muted-foreground border-border hover:border-foreground/30'
+                                    }`}
+                                >
+                                    {c}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-1 shrink-0">
+                        <button type="button" onClick={saveEdit} className="inline-flex items-center justify-center h-6 w-6 rounded bg-success/15 text-success hover:bg-success/25 transition-colors" aria-label="Save">
+                            <Check className="h-3 w-3" aria-hidden="true" />
+                        </button>
+                        <button type="button" onClick={cancelEdit} className="inline-flex items-center justify-center h-6 w-6 rounded bg-muted text-muted-foreground hover:bg-muted/70 transition-colors" aria-label="Cancel">
+                            <X className="h-3 w-3" aria-hidden="true" />
+                        </button>
+                    </div>
+                </div>
+            </li>
+        )
+    }
+
     return (
-        <li className="px-4 py-2 flex items-start gap-3 text-[11px]">
-            <span className="text-muted-foreground w-28 shrink-0">{field.label}</span>
-            {present ? (
-                <>
-                    <span className="text-foreground flex-1">{field.value}</span>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 shrink-0 ${
-                        field.confidence === 'high'   ? 'bg-success/10 text-success border border-success/20' :
-                        field.confidence === 'medium' ? 'bg-warning/10 text-warning border border-warning/20' :
-                        'bg-muted text-muted-foreground border border-border'
-                    }`}>{field.confidence}</span>
-                </>
-            ) : (
-                <span className="flex-1 inline-flex items-center gap-1 text-warning italic">
-                    <AlertCircle className="h-3 w-3" aria-hidden="true" />
-                    missing
-                </span>
+        <li className="group px-4 py-2 text-[11px]">
+            <div className="flex items-start gap-3">
+                <span className="text-muted-foreground w-28 shrink-0">{field.label}</span>
+                {present ? (
+                    <>
+                        <span className="text-foreground flex-1">{effectiveValue}</span>
+                        <span className={`text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 shrink-0 ${confidenceChipClass(effectiveConfidence)}`}>
+                            {effectiveConfidence}
+                        </span>
+                    </>
+                ) : (
+                    <span className="flex-1 inline-flex items-center gap-1 text-warning italic">
+                        <AlertCircle className="h-3 w-3" aria-hidden="true" />
+                        missing · click to add
+                    </span>
+                )}
+                <button
+                    type="button"
+                    onClick={startEdit}
+                    className="shrink-0 inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    aria-label={`Edit ${field.label}`}
+                >
+                    <Pencil className="h-3 w-3" aria-hidden="true" />
+                </button>
+            </div>
+            {wasEdited && (
+                <div className="ml-[7.25rem] mt-0.5 text-[10px] text-muted-foreground italic">
+                    Edited · was &quot;{field.value ?? 'missing'}&quot;{field.confidence ? ` (${field.confidence})` : ''}
+                </div>
             )}
         </li>
     )
@@ -8161,6 +8338,93 @@ function SalesDiscoveryNotesPreview() {
                         <DiscoveryRow key={f.key} field={f} />
                     ))}
                 </ul>
+            </div>
+        </SalesPreviewShell>
+    )
+}
+
+// ─── sales-account-history (sc-S.4 LEFT panel · evidence pack) ──────────────
+// Renders prior MANATT engagements + Hayes Construction GC referrer profile +
+// Strata account notes. The assigned rep reviews this evidence while filling
+// the BANT + MEDDIC checklist on the RIGHT panel · replaces the duplicated
+// SalesDiscoveryNotesPreview from v1.
+function SalesAccountHistoryPreview() {
+    const h = MANATT_ACCOUNT_HISTORY
+    const totalPriorValueUSD = h.priorProjects.reduce((s, p) => s + p.valueUSD, 0)
+    return (
+        <SalesPreviewShell
+            icon={Award}
+            filename="account-history-manatt.pdf"
+            size="14 KB"
+            statusBadge={{ label: 'Copper read-only mock', tone: 'info' }}
+        >
+            <div className="text-[11px] text-muted-foreground">
+                Strata pulled the {h.accountName} account history + the {h.referrer.name} referrer profile from Copper · evidence for the discovery checklist on the right.
+            </div>
+
+            {/* Prior MANATT engagements */}
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center gap-2">
+                    <Briefcase className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-foreground flex-1">
+                        {h.accountName} · {h.priorProjects.length} prior wins
+                    </span>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                        ${(totalPriorValueUSD / 1_000_000).toFixed(1)}M total
+                    </span>
+                </div>
+                <ul className="divide-y divide-border">
+                    {h.priorProjects.map(p => (
+                        <li key={p.code} className="px-4 py-2.5 text-[11px]">
+                            <div className="flex items-center justify-between gap-3">
+                                <span className="text-foreground font-medium truncate">{p.code} · {p.market} · {p.vertical}</span>
+                                <span className="text-muted-foreground tabular-nums shrink-0">
+                                    ${(p.valueUSD / 1_000_000).toFixed(p.valueUSD >= 1_000_000 ? 1 : 2)}M · {p.year}
+                                </span>
+                            </div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                                <CheckCircle2 className="h-3 w-3 text-success" aria-hidden="true" />
+                                <span>Won · {p.cycleWeeks}-week cycle · contact: {p.contact}</span>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            {/* Hayes Construction · GC referrer */}
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center gap-2">
+                    <Building2 className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-foreground">
+                        {h.referrer.name} · {h.referrer.relationship}
+                    </span>
+                </div>
+                <div className="px-4 py-3 grid grid-cols-3 gap-2 text-[11px]">
+                    <div>
+                        <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold block">Routed projects</span>
+                        <span className="text-foreground font-bold tabular-nums">{h.referrer.priorRoutedProjects}</span>
+                    </div>
+                    <div>
+                        <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold block">Avg cycle</span>
+                        <span className="text-foreground font-bold tabular-nums">{h.referrer.avgCycleWeeks}w</span>
+                    </div>
+                    <div>
+                        <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold block">On-time</span>
+                        <span className="text-foreground font-bold tabular-nums">{h.referrer.onTimeResponsePct}%</span>
+                    </div>
+                </div>
+                <div className="px-4 pb-3 text-[10px] text-muted-foreground italic">
+                    Last engagement · {h.referrer.lastEngagement}
+                </div>
+            </div>
+
+            {/* Strata account notes */}
+            <div className="rounded-lg border border-ai/30 bg-ai/5 px-3 py-2.5 text-[11px] text-foreground flex items-start gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-ai shrink-0 mt-0.5" aria-hidden="true" />
+                <div>
+                    <strong className="text-ai">Strata note · </strong>
+                    {h.accountNotes}
+                </div>
             </div>
         </SalesPreviewShell>
     )

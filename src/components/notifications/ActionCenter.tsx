@@ -359,16 +359,11 @@ const OFFICEWORKS_STEP_NOTIFICATIONS: Record<string, OwStepNotif> = {
         event: 'officeworks:sales-assign-open',
         footerText: 'Handoff briefing pending',
     },
-    'sc-S.4': {
-        badge: '1 new', badgeColor: 'ai',
-        title: 'Discovery summary ready · BANT + MEDDIC',
-        desc: 'Strata auto-summarized 7-message thread into BANT + MEDDIC. 2 missing MEDDIC fields surfaced before the rep talks to the client · stops the salesperson-guessing root cause.',
-        sender: 'Strata AI · Discovery Assistant',
-        re: 'MANATT-4F · discovery template · 2 fields missing',
-        cta: 'Open discovery notes →',
-        event: 'officeworks:sales-discovery-open',
-        footerText: 'Discovery review pending',
-    },
+    // sc-S.4 · NO notification · same Sales Rep continuing from the sc-S.3
+    // handoff acceptance. The modal stays open via STAYS_OPEN_WITHIN_FLOW2
+    // ('sc-S.3') so the rep transitions seamlessly into discovery work.
+    // Sending a fresh "Discovery summary ready" notification for an action
+    // they just chose themselves is redundant.
     'sc-S.5': {
         badge: '1 new', badgeColor: 'ai',
         title: 'Outreach drafts ready · email + Teams + SMS',

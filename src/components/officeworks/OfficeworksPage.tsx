@@ -69,7 +69,11 @@ function stepIdToStage(stepId: string | undefined): OfficeworksReviewStage {
 //   continuation of that action · sending them an "intake pending" notification
 //   for an opp they just created themselves is redundant (notification entry
 //   removed from ActionCenter).
-const STAYS_OPEN_WITHIN_FLOW2 = new Set(['sc1.2', 'sc-S.0'])
+// - sc-S.3 · Sales Rep just accepted the handoff · sc-S.4 (discovery) is the
+//   same rep starting qualification work · closing the modal + sending a fresh
+//   notification for their own next action is redundant (notification entry
+//   removed from ActionCenter).
+const STAYS_OPEN_WITHIN_FLOW2 = new Set(['sc1.2', 'sc-S.0', 'sc-S.3'])
 
 // ─── Officeworks notification events (dispatched by ActionCenter) ─────────────
 // Per P52 contract: every officeworks: custom event opens the review modal.

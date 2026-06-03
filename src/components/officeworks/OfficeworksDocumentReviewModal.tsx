@@ -18,7 +18,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import { Dialog, Transition, TransitionChild, DialogPanel } from '@headlessui/react'
-import { X, Sparkles, FileText, MapPin, ClipboardCheck, ArrowRight, AlertCircle, CheckCircle2, FileWarning, Image as ImageIcon, Eye, UserCheck, Users, Paperclip, Mail, Loader2, HelpCircle, ShieldCheck, Search, AlertTriangle, DollarSign, Send, Calendar, Layers, Pencil, Inbox, Building2, Truck, ChevronDown, ChevronRight as ChevronRightIcon, Save, Edit3, Target, TrendingUp, MessageSquare, Smartphone, ExternalLink, Activity, Clock, Briefcase, Award, Check, Database, Upload } from 'lucide-react'
+import { X, Sparkles, FileText, MapPin, ClipboardCheck, ArrowRight, AlertCircle, CheckCircle2, FileWarning, Image as ImageIcon, Eye, UserCheck, Users, Paperclip, Mail, Loader2, HelpCircle, ShieldCheck, Search, AlertTriangle, DollarSign, Send, Calendar, Layers, Pencil, Inbox, Building2, Truck, ChevronDown, ChevronRight as ChevronRightIcon, Save, Edit3, Target, TrendingUp, MessageSquare, Smartphone, ExternalLink, Activity, Clock, Briefcase, Award, Check, Database, Upload, Star, Zap, CalendarClock } from 'lucide-react'
 import { useDemo } from '../../context/DemoContext'
 import { MANATT_ORDER_META } from './shared/manattOrderData'
 import {
@@ -41,11 +41,12 @@ import {
     SALES_OPP_EXTRACTED_SNIPPETS, SALES_OPP_CLARIFICATION_DRAFT,
     SALES_OPP_INTAKE_INSIGHTS,
     SALES_INTAKE_SOURCES, SALES_INTAKE_PROCESSING_STEPS,
+    SALES_REP_RECOMMENDATION, SALES_REP_REGION_GROUPS,
     type SalesInboxThread, type SalesRep,
     type IntakeSourceCard,
 } from './shared/manattSalesData'
 import { useOfficeworksVertical } from './shared/verticalSignal'
-import { useSelectedThread, writeSelectedThread, useIntakenThreads, addIntakenThread, useShowNewArrival, useIntakePhase, writeIntakePhase, useIntakeSource, writeIntakeSource, MANATT_THREAD_ID } from './shared/salesInboxSignal'
+import { useSelectedThread, writeSelectedThread, useIntakenThreads, addIntakenThread, useShowNewArrival, useIntakePhase, writeIntakePhase, useIntakeSource, writeIntakeSource, useAssignedRepId, writeAssignedRepId, useOppPriority, writeOppPriority, MANATT_THREAD_ID } from './shared/salesInboxSignal'
 import { OFFICEWORKS_FUNNEL } from './shared/funnelStages'
 import CapacityHeatmap from './shared/CapacityHeatmap'
 import BlueprintFloorPlan from './shared/BlueprintFloorPlan'
@@ -394,9 +395,12 @@ export default function OfficeworksDocumentReviewModal({
                                             <Sparkles className="h-5 w-5" />
                                         </div>
                                         <div className="min-w-0">
-                                            <h3 className="text-[15px] font-bold text-foreground leading-tight truncate">
-                                                Document Review — MANATT 4th Floor
-                                            </h3>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <h3 className="text-[15px] font-bold text-foreground leading-tight truncate">
+                                                    Document Review — MANATT 4th Floor
+                                                </h3>
+                                                <OppPriorityChipMaybe />
+                                            </div>
                                         </div>
                                     </div>
 
@@ -5882,12 +5886,15 @@ function SalesPreviewShell({ icon: Icon, filename, size, statusBadge, children }
 }
 
 // ─── Helper · Panel hero header (consistent across panels) ───────────────────
+// Auto-renders the PriorityChip inline with the title when the salesOppPriority
+// signal is true. Reads the signal directly so no opt-in prop is needed.
 function SalesPanelHero({ stage, title, subtitle, kpiRow }: {
     stage: OfficeworksReviewStage
     title: string
     subtitle: string
     kpiRow?: React.ReactNode
 }) {
+    const isPriority = useOppPriority()
     return (
         <div className="rounded-xl border border-border bg-card p-4 space-y-3">
             <div className="flex items-start gap-3">
@@ -5895,7 +5902,10 @@ function SalesPanelHero({ stage, title, subtitle, kpiRow }: {
                     <Sparkles className="h-4 w-4 text-ai" aria-hidden="true" />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold text-foreground">{title}</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold text-foreground">{title}</span>
+                        {isPriority && <PriorityChip />}
+                    </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</div>
                 </div>
             </div>
@@ -5904,6 +5914,28 @@ function SalesPanelHero({ stage, title, subtitle, kpiRow }: {
             {kpiRow}
         </div>
     )
+}
+
+// ─── Helper · PriorityChip (consistent star badge for priority opps) ─────────
+function PriorityChip({ size = 'sm' }: { size?: 'xs' | 'sm' }) {
+    const cls = size === 'xs'
+        ? 'text-[9px] px-1.5 py-0 gap-0.5'
+        : 'text-[10px] px-2 py-0.5 gap-1'
+    const iconSize = size === 'xs' ? 'h-2.5 w-2.5' : 'h-3 w-3'
+    return (
+        <span className={`inline-flex items-center rounded border bg-warning/10 text-warning border-warning/30 font-bold uppercase tracking-wider ${cls}`}>
+            <Star className={`${iconSize} fill-current`} aria-hidden="true" />
+            Priority
+        </span>
+    )
+}
+
+// Reads the signal · renders the chip conditionally. Use where the parent JSX
+// doesn't already call useOppPriority (e.g. inside read-only preview shells).
+function OppPriorityChipMaybe({ size = 'sm' }: { size?: 'xs' | 'sm' }) {
+    const isPriority = useOppPriority()
+    if (!isPriority) return null
+    return <PriorityChip size={size} />
 }
 
 // ─── Sticky CTA footer reused across panels ──────────────────────────────────
@@ -6396,6 +6428,42 @@ function SalesInsightKPI({ label, value, tone, sub }: {
     )
 }
 
+// ─── sc-S.1 · Project priority toggle (Sales Lead flags for expedited SLA) ──
+// Inserted in the refining-phase RIGHT panel between Strata insights and the
+// pre-flight check. Click toggles the `salesOppPriority` signal · the chip
+// then propagates to all downstream Sales steps via PriorityChip renders.
+function PriorityTogglePanel() {
+    const isPriority = useOppPriority()
+    return (
+        <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg bg-warning/10 flex items-center justify-center shrink-0">
+                <Star className={`h-4 w-4 text-warning ${isPriority ? 'fill-current' : ''}`} aria-hidden="true" />
+            </div>
+            <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-foreground">Project priority</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                    {isPriority
+                        ? 'Marked as priority · expedited SLA (12h qualify / 24h proposal) on the assigned rep.'
+                        : 'Mark to trigger expedited SLA (12h qualify / 24h proposal) and a visual flag for the assigned rep.'}
+                </div>
+            </div>
+            <button
+                type="button"
+                onClick={() => writeOppPriority(!isPriority)}
+                className={`shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[11px] font-bold transition-colors ${
+                    isPriority
+                        ? 'bg-warning text-warning-foreground hover:bg-warning/90'
+                        : 'bg-card border border-border text-foreground hover:bg-muted'
+                }`}
+                aria-pressed={isPriority}
+            >
+                <Star className={`h-3.5 w-3.5 ${isPriority ? 'fill-current' : ''}`} aria-hidden="true" />
+                {isPriority ? 'Priority on' : 'Mark as priority'}
+            </button>
+        </div>
+    )
+}
+
 // ─── sc-S.1 · Opportunity Intake ────────────────────────────────────────────
 // IMPORTANT React-hooks rule · all hooks declared at the top BEFORE any early
 // return · do not reintroduce useMemo / useState below the phase conditionals.
@@ -6540,6 +6608,9 @@ function SalesOppIntakePanel({ onValidate }: LDPanelProps) {
                 {/* Provenance card lives in the LEFT panel now (DRAFT opp record) · */}
                 {/* showing it on the right too would duplicate the same data.       */}
                 <SalesIntakeInsightsCard toClarifyCount={toClarifyCount} />
+
+                {/* ─── Project priority · Sales Lead can flag for expedited SLA ──── */}
+                <PriorityTogglePanel />
 
                 {/* ─── Pre-flight check · 9 Works form fields ─────────────────────── */}
                 <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -6686,31 +6757,297 @@ function SalesOppIntakePanel({ onValidate }: LDPanelProps) {
     )
 }
 
-// ─── sc-S.2 · Rep Capacity Ledger ───────────────────────────────────────────
+// ─── sc-S.2 · Rep Capacity Ledger · master-detail RIGHT panel ───────────────
+// LEFT panel (SalesCapacityLedgerPreview) is the master list · click a rep
+// there → writes salesAssignedRepId signal → this RIGHT panel re-renders the
+// detail card for that rep. If no user click yet, the detail defaults to the
+// Strata recommendation so the panel is never empty.
 function SalesCapacityPanel({ onValidate }: LDPanelProps) {
+    const selectedId = useAssignedRepId()
+    const effectiveId = selectedId ?? SALES_REP_RECOMMENDATION.repId
+    const rep = SALES_REPS.find(r => r.id === effectiveId)!
+    const isUserSelection = !!selectedId
+
+    // ── Auto match-assessment (replaces the v1 checkbox) ────────────────────
+    // MANATT-4F is a DC furniture opp · derive 4 quality signals from the rep.
+    const oppMarket = 'DC'
+    const territoryMatch = rep.territory.includes(oppMarket)
+    const priorManattCount = rep.priorWinsWithAccount.MANATT ?? 0
+    const priorWinsOk = priorManattCount > 0
+    const capacityOk = rep.capacityFlag !== 'overloaded'
+    const responseOk = rep.onTimeResponseRatePct >= 80
+    const allGreen = territoryMatch && capacityOk && responseOk
+
+    const canProceed = isUserSelection
+    const shortLabel = rep.label.replace('Sales ', '')
+
     return (
         <>
             <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
                 <SalesPanelHero
                     stage="sales-capacity"
-                    title="Rep capacity ledger · live load view"
-                    subtitle={`${SALES_REPS.length} reps · Mid-Atlantic · pulled from Copper events (read-only mock)`}
+                    title="Rep capacity ledger · best-fit assignment"
+                    subtitle={`Pick a rep from the left ledger · Strata recommends ${SALES_REPS.find(r => r.id === SALES_REP_RECOMMENDATION.repId)?.label}`}
                 />
 
-                <RepCapacityLedger reps={SALES_REPS} />
+                {/* Strata reco banner · no checkbox · auto-match handled below */}
+                <div className="rounded-xl border border-ai/30 bg-ai/5 p-3 flex items-start gap-2">
+                    <Sparkles className="h-4 w-4 text-ai shrink-0 mt-0.5" aria-hidden="true" />
+                    <div className="text-[12px] text-foreground leading-relaxed">
+                        <strong className="text-ai">Strata · best-fit rep · </strong>
+                        {SALES_REP_RECOMMENDATION.rationale}
+                    </div>
+                </div>
 
-                <SalesSourceCite source="PP SC5 (BPMN) · capacity self-reported Thursdays · rework not captured · this view includes both" />
+                {/* Selected rep detail card */}
+                <SalesRepDetailCard
+                    rep={rep}
+                    isUserSelection={isUserSelection}
+                    territoryMatch={territoryMatch}
+                    priorWinsOk={priorWinsOk}
+                    capacityOk={capacityOk}
+                    responseOk={responseOk}
+                />
+
+                <SalesSourceCite source="BPMN PP SC5 · capacity self-reported Thursdays vs Strata live ledger · revisions + rework included" />
             </div>
             <SalesStickyCTA
-                label="Capacity reviewed · proceed to assignment"
+                label={
+                    canProceed ? `Assign ${shortLabel} · proceed to discovery`
+                               : 'Click a rep on the left to assign'
+                }
                 onClick={onValidate}
+                disabled={!canProceed}
+                secondaryNote={
+                    !canProceed ? 'Strata recommends Rep A (Mid-Atlantic) · click any rep on the left ledger to confirm.'
+                  : !allGreen   ? 'Cross-territory or capacity warning · confirm with Sales Manager before commit.'
+                                : 'Strata starts the 24h qualify / 48h proposal SLA timer on assignment.'
+                }
             />
         </>
     )
 }
 
+// ─── sc-S.2 · SalesRepDetailCard (RIGHT panel detail view) ──────────────────
+// Renders the currently selected rep with:
+//   - prominent territory header (region + sub-regions + focus + status)
+//   - 4 auto match-assessment chips (Territory / Prior wins / Load / Response)
+//   - full-width quota bar
+//   - 3-col metrics + active opps + prior wins + KPI footer
+// `isUserSelection=false` means the user hasn't clicked yet · we show the
+// Strata default with a discrete "Strata default" chip in the header.
+function SalesRepDetailCard({
+    rep,
+    isUserSelection,
+    territoryMatch,
+    priorWinsOk,
+    capacityOk,
+    responseOk,
+}: {
+    rep: SalesRep
+    isUserSelection: boolean
+    territoryMatch: boolean
+    priorWinsOk: boolean
+    capacityOk: boolean
+    responseOk: boolean
+}) {
+    const region = SALES_REP_REGION_GROUPS.find(g => g.key === rep.regionGroup)
+    const priorManattCount = rep.priorWinsWithAccount.MANATT ?? 0
+    const priorWinsCount = Object.values(rep.priorWinsWithAccount).reduce((s, n) => s + n, 0)
+    const statusToneClass =
+        rep.capacityFlag === 'overloaded' ? 'bg-destructive/10 text-destructive border-destructive/30' :
+        rep.capacityFlag === 'optimal'    ? 'bg-warning/10 text-warning border-warning/20' :
+                                            'bg-success/10 text-success border-success/20'
+    const quotaBarClass =
+        rep.capacityFlag === 'overloaded' ? 'bg-destructive' :
+        rep.capacityFlag === 'optimal'    ? 'bg-warning' :
+                                            'bg-success'
+
+    return (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+            {/* ── Territory header · prominent · border-l-4 accent ─────────── */}
+            <div className="border-l-4 border-l-ai bg-muted/20 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                        <Building2 className="h-5 w-5 text-ai shrink-0 mt-0.5" aria-hidden="true" />
+                        <div className="flex-1 min-w-0">
+                            <div className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Territory · {region?.label}</div>
+                            <div className="text-base font-bold text-foreground mt-0.5">{rep.territory}</div>
+                            {region?.focus && (
+                                <div className="text-[11px] text-muted-foreground mt-0.5 italic">{region.focus}</div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="shrink-0 flex flex-col items-end gap-1">
+                        <span className={`inline-flex items-center text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 border ${statusToneClass}`}>
+                            {rep.capacityFlag}
+                        </span>
+                        {rep.isRegionLead && (
+                            <span className="text-[9px] uppercase tracking-wider font-bold bg-foreground/10 text-foreground/70 rounded px-1.5 py-0.5">Lead</span>
+                        )}
+                        {!isUserSelection && (
+                            <span className="text-[9px] uppercase tracking-wider font-bold bg-ai/10 text-ai border border-ai/20 rounded px-1.5 py-0.5">Strata default</span>
+                        )}
+                    </div>
+                </div>
+                <div className="text-[12px] text-foreground font-semibold mt-2">{rep.label}</div>
+            </div>
+
+            {/* ── 4 auto match-assessment chips ─────────────────────────────── */}
+            <div className="px-4 py-3 border-t border-border space-y-2">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mb-1.5">Match assessment · MANATT-4F</div>
+                <div className="grid grid-cols-2 gap-2">
+                    <MatchChip
+                        ok={territoryMatch}
+                        label="Territory"
+                        detail={territoryMatch ? 'DC office in DC + NoVA' : 'Cross-territory'}
+                    />
+                    <MatchChip
+                        ok={priorWinsOk}
+                        neutralIfNotOk
+                        label="Prior wins"
+                        detail={priorWinsOk ? `MANATT:${priorManattCount}` : 'No prior MANATT'}
+                    />
+                    <MatchChip
+                        ok={capacityOk}
+                        label="Load"
+                        detail={`${rep.quotaProgressPct}% · ${rep.capacityFlag}`}
+                    />
+                    <MatchChip
+                        ok={responseOk}
+                        label="Response SLA"
+                        detail={`${rep.onTimeResponseRatePct}% on-time`}
+                    />
+                </div>
+            </div>
+
+            {/* ── Quota bar full-width ──────────────────────────────────────── */}
+            <div className="px-4 py-3 border-t border-border">
+                <div className="flex items-center justify-between text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">
+                    <span>Quota progress</span>
+                    <span className="text-foreground">{rep.quotaProgressPct}% YTD</span>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div className={`h-full ${quotaBarClass}`} style={{ width: `${Math.min(100, rep.quotaProgressPct)}%` }} />
+                </div>
+            </div>
+
+            {/* ── 3-col metrics ─────────────────────────────────────────────── */}
+            <div className="px-4 py-3 border-t border-border grid grid-cols-3 gap-2">
+                <div className="rounded-md border border-border bg-muted/20 p-2">
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Open opps</div>
+                    <div className="text-[14px] font-bold text-foreground tabular-nums mt-0.5">{rep.openOpps}</div>
+                </div>
+                <div className="rounded-md border border-border bg-muted/20 p-2">
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Qualified pipeline</div>
+                    <div className="text-[14px] font-bold text-foreground tabular-nums mt-0.5">${(rep.qualifiedPipelineValueUSD / 1_000_000).toFixed(1)}M</div>
+                </div>
+                <div className="rounded-md border border-border bg-muted/20 p-2">
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">On-time response</div>
+                    <div className="text-[14px] font-bold text-foreground tabular-nums mt-0.5">{rep.onTimeResponseRatePct}%</div>
+                </div>
+            </div>
+
+            {/* ── Active opps list ──────────────────────────────────────────── */}
+            {rep.recentActiveOpps.length > 0 && (
+                <div className="px-4 py-3 border-t border-border">
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                        <Briefcase className="h-3 w-3" aria-hidden="true" /> Active opps · {rep.recentActiveOpps.length}
+                    </div>
+                    <ul className="space-y-1">
+                        {rep.recentActiveOpps.map(o => (
+                            <li key={o.code} className="flex items-center gap-2 text-[11px]">
+                                <span className="text-foreground font-medium tabular-nums w-32 shrink-0 truncate">{o.code}</span>
+                                <span className="text-muted-foreground flex-1 truncate">{o.client}</span>
+                                <span className="text-foreground tabular-nums shrink-0">${(o.valueUSD / 1_000).toFixed(0)}k</span>
+                                <span className="text-muted-foreground text-[10px] tabular-nums shrink-0">{o.stage}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {/* ── Prior wins chips ──────────────────────────────────────────── */}
+            {priorWinsCount > 0 && (
+                <div className="px-4 py-3 border-t border-border">
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                        <Award className="h-3 w-3" aria-hidden="true" /> Prior wins · {priorWinsCount}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                        {Object.entries(rep.priorWinsWithAccount).map(([account, count]) => (
+                            <span
+                                key={account}
+                                className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider rounded border px-1.5 py-0.5 ${
+                                    account === 'MANATT'
+                                        ? 'bg-info/15 text-info border-info/30'
+                                        : 'bg-card text-foreground border-border'
+                                }`}
+                            >
+                                {account}:{count}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* ── KPI footer 3-col ──────────────────────────────────────────── */}
+            <div className="px-4 py-3 border-t border-border bg-muted/10 grid grid-cols-3 gap-2">
+                <div className="text-center">
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Avg cycle</div>
+                    <div className="text-[12px] font-bold text-foreground tabular-nums mt-0.5">{rep.avgCycleWeeks}w</div>
+                </div>
+                <div className="text-center">
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Lost deal rate</div>
+                    <div className="text-[12px] font-bold text-foreground tabular-nums mt-0.5">{rep.lostDealRatePct}%</div>
+                </div>
+                <div className="text-center">
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Total wins</div>
+                    <div className="text-[12px] font-bold text-foreground tabular-nums mt-0.5">{priorWinsCount}</div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function MatchChip({ ok, label, detail, neutralIfNotOk }: {
+    ok: boolean
+    label: string
+    detail: string
+    neutralIfNotOk?: boolean
+}) {
+    const okClass    = 'border-success/30 bg-success/5'
+    const warnClass  = 'border-warning/30 bg-warning/5'
+    const neutralCls = 'border-border bg-muted/30'
+    const cls = ok ? okClass : neutralIfNotOk ? neutralCls : warnClass
+    const Icon = ok ? CheckCircle2 : neutralIfNotOk ? HelpCircle : AlertTriangle
+    const iconColor = ok ? 'text-success' : neutralIfNotOk ? 'text-muted-foreground' : 'text-warning'
+    return (
+        <div className={`rounded-md border px-2.5 py-1.5 flex items-start gap-2 ${cls}`}>
+            <Icon className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${iconColor}`} aria-hidden="true" />
+            <div className="flex-1 min-w-0">
+                <div className="text-[10px] uppercase tracking-wider font-bold text-foreground">{label}</div>
+                <div className="text-[10px] text-muted-foreground truncate">{detail}</div>
+            </div>
+        </div>
+    )
+}
+
 // ─── New component · RepCapacityLedger ──────────────────────────────────────
-function RepCapacityLedger({ reps }: { reps: readonly SalesRep[] }) {
+// Master list of sales reps · used in sc-S.2 LEFT panel.
+// - Read-only mode (no onSelect): renders div cards · original AS-IS look.
+// - Selectable mode (onSelect provided): renders button cards · click writes
+//   the selected id · the SELECTED card gets a ring-primary outline. No
+//   background tint on any other card · the RIGHT panel renders the detail.
+function RepCapacityLedger({
+    reps,
+    onSelect,
+    selectedId,
+}: {
+    reps: readonly SalesRep[]
+    onSelect?: (id: string) => void
+    selectedId?: string | null
+}) {
+    const isInteractive = !!onSelect
     return (
         <div className="space-y-2">
             {reps.map(r => {
@@ -6720,11 +7057,20 @@ function RepCapacityLedger({ reps }: { reps: readonly SalesRep[] }) {
                 const toneClass = tone === 'destructive' ? 'bg-destructive/10 text-destructive border-destructive/20'
                                 : tone === 'warning'     ? 'bg-warning/10 text-warning border-warning/20'
                                 : 'bg-success/10 text-success border-success/20'
-                return (
-                    <div key={r.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                const isSelected = selectedId === r.id
+                const cardClass = `w-full text-left rounded-xl border bg-card overflow-hidden transition-all ${
+                    isSelected      ? 'border-primary ring-2 ring-primary/30'
+                    : isInteractive ? 'border-border hover:border-foreground/30 cursor-pointer'
+                                    : 'border-border'
+                }`
+                const body = (
+                    <>
                         <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center gap-2">
                             <Briefcase className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />
                             <span className="text-xs font-bold text-foreground truncate flex-1">{r.label}</span>
+                            {isSelected && (
+                                <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
+                            )}
                             <span className={`inline-flex items-center text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 border ${toneClass}`}>
                                 {r.capacityFlag}
                             </span>
@@ -6746,6 +7092,24 @@ function RepCapacityLedger({ reps }: { reps: readonly SalesRep[] }) {
                                 </div>
                             </div>
                         </div>
+                    </>
+                )
+                if (isInteractive) {
+                    return (
+                        <button
+                            key={r.id}
+                            type="button"
+                            onClick={() => onSelect!(r.id)}
+                            aria-pressed={isSelected}
+                            className={cardClass}
+                        >
+                            {body}
+                        </button>
+                    )
+                }
+                return (
+                    <div key={r.id} className={cardClass}>
+                        {body}
                     </div>
                 )
             })}
@@ -6753,88 +7117,186 @@ function RepCapacityLedger({ reps }: { reps: readonly SalesRep[] }) {
     )
 }
 
-// ─── sc-S.3 · Rep Assignment + SLA Gate ─────────────────────────────────────
+// ─── sc-S.3 · Handoff briefing (assigned rep accepts + starts qualification) ─
+// The rep (not the Sales Lead) lands here after sc-S.2 assignment. Strata
+// briefs them on why they were picked, what was extracted from the inbox, the
+// SLA gates they're now accountable for, and a suggested first-touch action.
 function SalesAssignmentPanel({ onValidate }: LDPanelProps) {
-    const [selected, setSelected] = useState<string>('rep-a')
-    const recommended = 'rep-a'
-    const selectedRep = SALES_REPS.find(r => r.id === selected)
+    const assignedId = useAssignedRepId()
+    const isPriority = useOppPriority()
+    const rep = SALES_REPS.find(r => r.id === assignedId) ?? SALES_REPS[0]
+    const opp = SALES_OPPORTUNITIES[0]
+    const region = SALES_REP_REGION_GROUPS.find(g => g.key === rep.regionGroup)
+    const priorManattCount = rep.priorWinsWithAccount.MANATT ?? 0
+    const qualifyHours = isPriority ? 12 : 24
+    const proposalHours = isPriority ? 24 : 48
 
     return (
         <>
             <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
                 <SalesPanelHero
                     stage="sales-assign"
-                    title="Assign rep · SLA gate starts"
-                    subtitle="MANATT-4F · Strata recommends Rep A (DC + NoVA · 2 prior MANATT wins · 78% quota)"
-                    kpiRow={
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <SLATimerChip hoursLeft={24} label="Qualify SLA" />
-                            <SLATimerChip hoursLeft={48} label="Proposal SLA" />
-                        </div>
-                    }
+                    title="Welcome — you've been assigned to MANATT-4F"
+                    subtitle={`${rep.label} · ${priorManattCount > 0 ? `${priorManattCount} prior MANATT win${priorManattCount > 1 ? 's' : ''}` : 'first MANATT engagement'} · ${rep.capacityFlag} load`}
                 />
 
+                {/* 1 · Why you were picked */}
                 <div className="rounded-xl border border-border bg-card overflow-hidden">
                     <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center gap-2">
-                        <UserCheck className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">Choose rep · suggested first</span>
+                        <Award className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">Why Strata picked you</span>
+                    </div>
+                    <div className="px-4 py-3 grid grid-cols-3 gap-2">
+                        <BriefingChip
+                            icon={<MapPin className="h-3 w-3" />}
+                            label="Territory"
+                            detail={`${rep.territory} · ${opp.market} office`}
+                        />
+                        <BriefingChip
+                            icon={<Award className="h-3 w-3" />}
+                            label="Prior wins"
+                            detail={priorManattCount > 0 ? `MANATT:${priorManattCount}` : 'No prior MANATT'}
+                            neutralIfEmpty={priorManattCount === 0}
+                        />
+                        <BriefingChip
+                            icon={<TrendingUp className="h-3 w-3" />}
+                            label="Load"
+                            detail={`${rep.quotaProgressPct}% · ${rep.capacityFlag}`}
+                            warn={rep.capacityFlag === 'overloaded'}
+                        />
+                    </div>
+                    {region?.focus && (
+                        <div className="px-4 pb-3 text-[11px] text-muted-foreground italic">
+                            <strong className="text-foreground not-italic">{region.label} focus:</strong> {region.focus}
+                        </div>
+                    )}
+                </div>
+
+                {/* 2 · What Strata extracted from the thread */}
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                    <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center gap-2">
+                        <Mail className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">What Strata extracted</span>
+                        <span className="ml-auto text-[10px] text-muted-foreground">THREAD-SIT-001.EML</span>
                     </div>
                     <ul className="divide-y divide-border">
-                        {SALES_REPS.map(r => {
-                            const isSel = selected === r.id
-                            const isRec = recommended === r.id
-                            return (
-                                <li key={r.id}>
-                                    <label className={`px-4 py-2.5 flex items-start gap-3 cursor-pointer transition-colors ${isSel ? 'bg-primary/5' : 'hover:bg-muted/30'}`}>
-                                        <input
-                                            type="radio"
-                                            name="rep"
-                                            checked={isSel}
-                                            onChange={() => setSelected(r.id)}
-                                            className="mt-1"
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[12px] font-bold text-foreground truncate">{r.label}</span>
-                                                {isRec && (
-                                                    <span className="inline-flex items-center text-[9px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 bg-ai/10 text-ai border border-ai/20">
-                                                        Strata recommends
-                                                    </span>
-                                                )}
-                                                <span className={`ml-auto text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 ${
-                                                    r.capacityFlag === 'overloaded' ? 'bg-destructive/10 text-destructive border border-destructive/20' :
-                                                    r.capacityFlag === 'optimal'    ? 'bg-warning/10 text-warning border border-warning/20' :
-                                                    'bg-success/10 text-success border border-success/20'
-                                                }`}>
-                                                    {r.capacityFlag}
-                                                </span>
-                                            </div>
-                                            <div className="text-[10px] text-muted-foreground mt-0.5">{r.territory} · {r.openOpps} opps · {r.quotaProgressPct}% quota · on-time {r.onTimeResponseRatePct}%</div>
-                                        </div>
-                                    </label>
-                                </li>
-                            )
-                        })}
+                        <li className="px-4 py-1.5 flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground">Company</span>
+                            <span className="text-foreground font-medium">{opp.company}</span>
+                        </li>
+                        <li className="px-4 py-1.5 flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground">Est value</span>
+                            <span className="text-foreground font-medium tabular-nums">${(opp.estValueUSD / 1_000).toFixed(0)}k</span>
+                        </li>
+                        <li className="px-4 py-1.5 flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground">Vertical</span>
+                            <span className="text-foreground font-medium">{opp.vertical} · refresh</span>
+                        </li>
+                        <li className="px-4 py-1.5 flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground">Market</span>
+                            <span className="text-foreground font-medium">{opp.market} office · 4th floor · 21.8k sf</span>
+                        </li>
+                        <li className="px-4 py-1.5 flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground">Source</span>
+                            <span className="text-foreground font-medium">Caitlin Barolet (referred via Hayes Construction GC)</span>
+                        </li>
                     </ul>
                 </div>
 
-                {selectedRep && (
-                    <div className="rounded-lg border border-info/30 bg-info/5 px-3 py-2 text-[11px] text-foreground flex items-start gap-2">
-                        <ShieldCheck className="h-3.5 w-3.5 text-info shrink-0 mt-0.5" aria-hidden="true" />
-                        <div>
-                            <strong>{selectedRep.label}</strong> will own this opp. SLA timer starts on confirm · 24h qualify · 48h proposal. Auto-escalates to Sales Manager if breached.
+                {/* 3 · SLA gates · expedited if priority */}
+                <div className={`rounded-xl border overflow-hidden ${isPriority ? 'border-warning/40 bg-warning/5' : 'border-info/30 bg-info/5'}`}>
+                    <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${isPriority ? 'border-warning/30' : 'border-info/20'}`}>
+                        <Clock className={`h-3.5 w-3.5 ${isPriority ? 'text-warning' : 'text-info'}`} aria-hidden="true" />
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">SLA gates · auto-tracked</span>
+                        {isPriority && (
+                            <span className="ml-auto inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider rounded border bg-warning/15 text-warning border-warning/30 px-1.5 py-0.5">
+                                <Star className="h-2.5 w-2.5 fill-current" aria-hidden="true" /> Expedited
+                            </span>
+                        )}
+                    </div>
+                    <div className="px-4 py-3 grid grid-cols-2 gap-2">
+                        <div className="rounded-md border border-border bg-card p-2.5 text-center">
+                            <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Qualify</div>
+                            <div className="text-[18px] font-bold text-foreground tabular-nums mt-0.5">{qualifyHours}h</div>
+                            <div className="text-[9px] text-muted-foreground mt-0.5">starts on accept</div>
+                        </div>
+                        <div className="rounded-md border border-border bg-card p-2.5 text-center">
+                            <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Proposal</div>
+                            <div className="text-[18px] font-bold text-foreground tabular-nums mt-0.5">{proposalHours}h</div>
+                            <div className="text-[9px] text-muted-foreground mt-0.5">starts on qualify</div>
                         </div>
                     </div>
-                )}
+                    <div className="px-4 pb-3 text-[11px] text-muted-foreground italic">
+                        Auto-escalates to Sales Manager if breached · system-tracked via Copper event feed.
+                    </div>
+                </div>
 
-                <SalesSourceCite source="PP S7 (BPMN) · process exists but is not enforced · 11-page workflow doc · 'You can have this amazing process, but if no one's following it…' (Karen ~end of session)" />
+                {/* 4 · Suggested first-touch */}
+                <div className="rounded-xl border border-ai/30 bg-ai/5 overflow-hidden">
+                    <div className="px-4 py-2.5 bg-card border-b border-ai/20 flex items-center gap-2">
+                        <Sparkles className="h-3.5 w-3.5 text-ai" aria-hidden="true" />
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">Suggested first-touch</span>
+                    </div>
+                    <ul className="divide-y divide-ai/20 bg-card">
+                        <li className="px-4 py-2.5 flex items-center gap-2 text-[11px]">
+                            <Mail className="h-3.5 w-3.5 text-foreground shrink-0" aria-hidden="true" />
+                            <span className="flex-1 text-foreground">Strata drafted an intro email · ready to send to Caitlin</span>
+                            <button
+                                type="button"
+                                className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[10px] font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
+                            >
+                                Review draft
+                            </button>
+                        </li>
+                        <li className="px-4 py-2.5 flex items-center gap-2 text-[11px]">
+                            <Calendar className="h-3.5 w-3.5 text-foreground shrink-0" aria-hidden="true" />
+                            <span className="flex-1 text-foreground">Suggested calendar slot · Tue 2 PM ET (Caitlin's typical free window)</span>
+                            <button
+                                type="button"
+                                className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[10px] font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
+                            >
+                                Open calendar
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+
+                <SalesSourceCite source="BPMN PP S7 · process orchestrator gate · Strata briefs the rep + starts SLA timers · auto-escalates if breached" />
             </div>
             <SalesStickyCTA
-                label="Confirm assignment · start SLA timer"
+                label="Accept assignment · start qualification"
                 onClick={onValidate}
-                secondaryNote="Strata never auto-assigns · the Sales Lead picks · Strata only suggests."
+                secondaryNote={isPriority
+                    ? `Priority opp · expedited ${qualifyHours}h/${proposalHours}h SLA · auto-escalates to Sales Manager if breached.`
+                    : `${qualifyHours}h qualify / ${proposalHours}h proposal SLA starts on accept · auto-escalates if breached.`
+                }
             />
         </>
+    )
+}
+
+// Briefing chip · used in the sc-S.3 handoff "Why you were picked" row.
+function BriefingChip({ icon, label, detail, warn, neutralIfEmpty }: {
+    icon: React.ReactNode
+    label: string
+    detail: string
+    warn?: boolean
+    neutralIfEmpty?: boolean
+}) {
+    const cls = warn ? 'border-warning/30 bg-warning/5'
+              : neutralIfEmpty ? 'border-border bg-muted/30'
+              : 'border-success/30 bg-success/5'
+    const iconCls = warn ? 'text-warning'
+                  : neutralIfEmpty ? 'text-muted-foreground'
+                  : 'text-success'
+    return (
+        <div className={`rounded-md border p-2 ${cls}`}>
+            <div className={`flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold ${iconCls}`}>
+                {icon}
+                <span>{label}</span>
+            </div>
+            <div className="text-[10px] text-foreground mt-1 leading-tight">{detail}</div>
+        </div>
     )
 }
 
@@ -7552,7 +8014,10 @@ function SalesOppRecordDraftView({ phase }: { phase: 'refining' | 'saving' }) {
                     <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
                         Opportunity record (Strata draft · awaiting Save)
                     </div>
-                    <div className="text-sm font-bold text-foreground mt-0.5">{edits['Company'] ?? opp.company}</div>
+                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        <span className="text-sm font-bold text-foreground">{edits['Company'] ?? opp.company}</span>
+                        <OppPriorityChipMaybe />
+                    </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
                         {opp.projectCode} · drafted from {sourceLabel}
                     </div>
@@ -7623,10 +8088,15 @@ function SalesOppRecordDraftView({ phase }: { phase: 'refining' | 'saving' }) {
 
 // ─── sales-capacity-ledger ──────────────────────────────────────────────────
 function SalesCapacityLedgerPreview() {
+    const selectedId = useAssignedRepId()
     return (
         <SalesPreviewShell icon={Users} filename="capacity-ledger.pdf" size="22 KB" statusBadge={{ label: 'Live · Copper mock', tone: 'info' }}>
-            <div className="text-[11px] text-muted-foreground">{SALES_REPS.length} reps · Mid-Atlantic · pulled from Copper events (read-only mock) · includes revisions and rework.</div>
-            <RepCapacityLedger reps={SALES_REPS} />
+            <div className="text-[11px] text-muted-foreground">{SALES_REPS.length} reps · 3 regions · Copper events (read-only mock) · click a rep to see the detail on the right.</div>
+            <RepCapacityLedger
+                reps={SALES_REPS}
+                onSelect={writeAssignedRepId}
+                selectedId={selectedId}
+            />
         </SalesPreviewShell>
     )
 }

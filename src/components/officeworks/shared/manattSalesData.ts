@@ -392,10 +392,21 @@ export const SALES_OPPORTUNITIES: SalesOpportunity[] = [
 
 // ─── Rep capacity ledger (5 reps · Mid-Atlantic) ─────────────────────────────
 
+export type SalesRepRegionGroup = 'mid-atlantic' | 'northeast' | 'southeast'
+
+export interface SalesRepActiveOpp {
+    code: string                           // project code · 'JPM-ATL-4471'
+    client: string                         // 'JPMorgan Chase'
+    valueUSD: number
+    stage: '25%' | '50%' | '75%' | '90%'
+}
+
 export interface SalesRep {
     id: string
     label: string                          // role-based · no proper names
     territory: string
+    regionGroup: SalesRepRegionGroup       // primary grouping per AS-IS docs
+    isRegionLead?: boolean                 // analog of designer isLead
     openOpps: number
     qualifiedPipelineValueUSD: number
     quotaProgressPct: number               // 0-100
@@ -403,6 +414,9 @@ export interface SalesRep {
     onTimeResponseRatePct: number
     capacityFlag: 'available' | 'optimal' | 'overloaded'
     lastActivityAt: string
+    avgCycleWeeks: number                  // analog of designer avgCycleTime
+    lostDealRatePct: number                // analog of designer errorRate
+    recentActiveOpps: SalesRepActiveOpp[]
 }
 
 export const SALES_REPS: SalesRep[] = [
@@ -410,6 +424,8 @@ export const SALES_REPS: SalesRep[] = [
         id: 'rep-a',
         label: 'Sales Rep · DC + NoVA',
         territory: 'DC · NoVA',
+        regionGroup: 'mid-atlantic',
+        isRegionLead: true,
         openOpps: 67,
         qualifiedPipelineValueUSD: 12_400_000,
         quotaProgressPct: 78,
@@ -417,11 +433,20 @@ export const SALES_REPS: SalesRep[] = [
         onTimeResponseRatePct: 84,
         capacityFlag: 'optimal',
         lastActivityAt: '2026-05-13 09:02',
+        avgCycleWeeks: 5.2,
+        lostDealRatePct: 18,
+        recentActiveOpps: [
+            { code: 'CBRE-BAL-9912', client: 'CBRE',                   valueUSD: 1_840_000, stage: '50%' },
+            { code: 'GSA-ARL-3271',  client: 'GSA · Arlington',        valueUSD: 920_000,   stage: '25%' },
+            { code: 'KPMG-DC-1142',  client: 'KPMG · DC',              valueUSD: 2_100_000, stage: '75%' },
+        ],
     },
     {
         id: 'rep-b',
         label: 'Sales Rep · NYC + Tri-State',
         territory: 'NYC · NJ · CT',
+        regionGroup: 'northeast',
+        isRegionLead: true,
         openOpps: 84,
         qualifiedPipelineValueUSD: 15_100_000,
         quotaProgressPct: 64,
@@ -429,11 +454,21 @@ export const SALES_REPS: SalesRep[] = [
         onTimeResponseRatePct: 71,
         capacityFlag: 'overloaded',
         lastActivityAt: '2026-05-13 07:30',
+        avgCycleWeeks: 6.8,
+        lostDealRatePct: 24,
+        recentActiveOpps: [
+            { code: 'JPM-ATL-4471',  client: 'JPMorgan Chase',         valueUSD: 3_280_000, stage: '50%' },
+            { code: 'DLA-NYC-22F',   client: 'DLA Piper',              valueUSD: 780_000,   stage: '25%' },
+            { code: 'BLK-NYC-1881',  client: 'BlackRock',              valueUSD: 4_500_000, stage: '75%' },
+            { code: 'GS-NJ-2042',    client: 'Goldman Sachs',          valueUSD: 2_300_000, stage: '25%' },
+        ],
     },
     {
         id: 'rep-c',
         label: 'Sales Rep · ATL + Carolinas',
         territory: 'ATL · NC · SC',
+        regionGroup: 'southeast',
+        isRegionLead: true,
         openOpps: 41,
         qualifiedPipelineValueUSD: 6_800_000,
         quotaProgressPct: 92,
@@ -441,11 +476,18 @@ export const SALES_REPS: SalesRep[] = [
         onTimeResponseRatePct: 96,
         capacityFlag: 'available',
         lastActivityAt: '2026-05-13 08:55',
+        avgCycleWeeks: 4.5,
+        lostDealRatePct: 14,
+        recentActiveOpps: [
+            { code: 'JPM-ATL-2204',  client: 'JPMorgan Chase',         valueUSD: 1_850_000, stage: '90%' },
+            { code: 'DUKE-DUR-77F',  client: 'Duke Energy',            valueUSD: 2_700_000, stage: '50%' },
+        ],
     },
     {
         id: 'rep-d',
         label: 'Sales Rep · PA + WV',
         territory: 'Pittsburgh · Philly · WV',
+        regionGroup: 'mid-atlantic',
         openOpps: 58,
         qualifiedPipelineValueUSD: 9_100_000,
         quotaProgressPct: 71,
@@ -453,11 +495,19 @@ export const SALES_REPS: SalesRep[] = [
         onTimeResponseRatePct: 88,
         capacityFlag: 'optimal',
         lastActivityAt: '2026-05-13 08:18',
+        avgCycleWeeks: 5.5,
+        lostDealRatePct: 20,
+        recentActiveOpps: [
+            { code: 'ELI-INDY-3210', client: 'Eli Lilly · Indy',       valueUSD: 1_400_000, stage: '50%' },
+            { code: 'CMU-ANC-0118',  client: 'CMU Ancillary',          valueUSD: 920_000,   stage: '75%' },
+            { code: 'PNC-PIT-6612',  client: 'PNC · Pittsburgh',       valueUSD: 1_980_000, stage: '25%' },
+        ],
     },
     {
         id: 'rep-e',
         label: 'Sales Rep · MA + NE (ramp)',
         territory: 'MA · NH · ME',
+        regionGroup: 'northeast',
         openOpps: 23,
         qualifiedPipelineValueUSD: 3_200_000,
         quotaProgressPct: 54,
@@ -465,8 +515,57 @@ export const SALES_REPS: SalesRep[] = [
         onTimeResponseRatePct: 92,
         capacityFlag: 'available',
         lastActivityAt: '2026-05-13 07:45',
+        avgCycleWeeks: 7.0,
+        lostDealRatePct: 22,
+        recentActiveOpps: [
+            { code: 'HRV-BOS-9941',  client: 'Harvard · Cambridge',    valueUSD: 760_000,   stage: '25%' },
+            { code: 'WAY-BOS-3380',  client: 'Wayfair · Boston',       valueUSD: 1_240_000, stage: '50%' },
+        ],
     },
 ]
+
+// ─── sc-S.2 · Sales rep region groups (parallel to designer REGION_LABELS) ──
+// Primary grouping axis per AS-IS docs · territory/region (no vertical split).
+export interface SalesRepRegionGroupDef {
+    key: SalesRepRegionGroup
+    label: string
+    subRegions: string
+    leadId: string                         // SalesRep id of the regional lead
+    focus: string                          // narrative · what this region specializes in
+}
+
+export const SALES_REP_REGION_GROUPS: SalesRepRegionGroupDef[] = [
+    {
+        key: 'mid-atlantic',
+        label: 'Mid-Atlantic',
+        subRegions: 'DC + NoVA · PA + WV',
+        leadId: 'rep-a',
+        focus: 'GC + Federal · GSA SQ + GSA Schedule pipeline',
+    },
+    {
+        key: 'northeast',
+        label: 'Northeast',
+        subRegions: 'NYC + Tri-State · MA + NE',
+        leadId: 'rep-b',
+        focus: 'Financial services · law firms · LEED/WELL builds',
+    },
+    {
+        key: 'southeast',
+        label: 'Southeast',
+        subRegions: 'ATL + Carolinas',
+        leadId: 'rep-c',
+        focus: 'Hospitality · regional corporate HQs',
+    },
+]
+
+// ─── sc-S.2 · Strata best-fit rep recommendation for MANATT-4F ──────────────
+// Hardcoded for the demo · anchored to: rep-a owns DC+NoVA (MANATT DC office),
+// has 2 prior MANATT wins, optimal load (67 opps · 78% quota · 84% on-time).
+export const SALES_REP_RECOMMENDATION = {
+    repId: 'rep-a',
+    rationale: 'MANATT DC office matches DC + NoVA territory · 2 prior MANATT wins · 78% quota · optimal load · 84% on-time response.',
+    territoryMatchLabel: 'Confirm territory match · MANATT DC office maps to DC + NoVA',
+} as const
 
 // ─── §5 + §6 Discovery template (BANT + MEDDIC) ──────────────────────────────
 

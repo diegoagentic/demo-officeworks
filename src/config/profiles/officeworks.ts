@@ -303,10 +303,10 @@ export const OFFICEWORKS_STEPS: DemoStep[] = [
         id: 'sc-S.3',
         groupId: 12,
         groupTitle: 'Capacity & Assignment',
-        title: 'Assign rep · SLA gate starts',
-        description: 'Pick the rep · Strata suggests one by territory + prior wins + load. SLA timer starts (24h qualify · 48h proposal) · auto-escalates to Sales Manager if breached. Today no enforcement · the 11-page workflow doc is inconsistently followed.',
+        title: 'Handoff briefing · accept assignment',
+        description: 'Strata briefs you on the assigned opp · why you were picked · what was extracted from the inbox · the SLA gates. Accept assignment to start qualification. Priority opps trigger expedited SLAs (12h / 24h).',
         app: 'officeworks-sales',
-        role: 'Sales Lead',
+        role: 'Sales Rep · DC + NoVA',
         flowId: 'sales',
     },
 
@@ -318,7 +318,7 @@ export const OFFICEWORKS_STEPS: DemoStep[] = [
         title: 'Discovery & qualification checklist',
         description: 'Log discovery notes against a BANT + MEDDIC template. Strata auto-summarizes the email thread into the template and flags missing fields. Today salespeople guess at client requirements · named root cause of the 2-4 design revision cycles.',
         app: 'officeworks-sales',
-        role: 'Sales Lead',
+        role: 'Sales Rep · DC + NoVA',
         flowId: 'sales',
     },
     {
@@ -328,7 +328,7 @@ export const OFFICEWORKS_STEPS: DemoStep[] = [
         title: 'Multi-channel outreach draft',
         description: 'Compose follow-up across email · Teams · SMS in one composer. Strata pre-fills from discovery and suggests the channel-of-record. Drafts only · never auto-send. Today the same request hits 3 channels · reps must monitor all of them.',
         app: 'officeworks-sales',
-        role: 'Sales Lead',
+        role: 'Sales Rep · DC + NoVA',
         flowId: 'sales',
     },
 
@@ -340,7 +340,7 @@ export const OFFICEWORKS_STEPS: DemoStep[] = [
         title: 'Proposal assembly · BOM + labor + pricing',
         description: 'Pull the Spec Check BOM + L&D labor quote + NetSuite price catalog into a single proposal · PDF preview + draft email. Today this is ~6 hours of stops-and-starts pasted from Ignite folders into Word and Excel.',
         app: 'officeworks-sales',
-        role: 'Sales Lead',
+        role: 'Sales Rep · DC + NoVA',
         flowId: 'sales',
     },
     {
@@ -350,7 +350,7 @@ export const OFFICEWORKS_STEPS: DemoStep[] = [
         title: 'Close + auto-handoff to Ops',
         description: 'Mark win/loss · Strata builds the post-award handoff packet (Works post-award form + NetSuite SO + Ignite folder access) and routes to Spec Check or L&D. Today the post-award handoff is at minimum 2 separate manual steps · the coordinator NetSuite action is routinely missed.',
         app: 'officeworks-sales',
-        role: 'Sales Lead',
+        role: 'Sales Rep · DC + NoVA',
         flowId: 'sales',
     },
 

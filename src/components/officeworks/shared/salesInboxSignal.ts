@@ -202,3 +202,70 @@ export function useIntakeSource(): IntakeSource {
     }, []);
     return source;
 }
+
+// ─── sc-S.2 · Assigned rep id (selected in the capacity heatmap) ─────────────
+// Cross-tree signal so sc-S.3 / sc-S.4 / sc-S.5 can read the assignment without
+// prop-drilling through OfficeworksPage.
+
+const ASSIGNED_REP_KEY = 'officeworks:sales-assigned-rep-id';
+const ASSIGNED_REP_EVENT = 'officeworks:sales-assigned-rep-change';
+
+export function readAssignedRepId(): string | null {
+    if (typeof window === 'undefined') return null;
+    return window.sessionStorage.getItem(ASSIGNED_REP_KEY);
+}
+
+export function writeAssignedRepId(id: string | null): void {
+    if (typeof window === 'undefined') return;
+    if (id) window.sessionStorage.setItem(ASSIGNED_REP_KEY, id);
+    else window.sessionStorage.removeItem(ASSIGNED_REP_KEY);
+    window.dispatchEvent(new CustomEvent(ASSIGNED_REP_EVENT, { detail: id ?? null }));
+}
+
+/** Reactive hook · re-renders when the assigned rep changes. */
+export function useAssignedRepId(): string | null {
+    const [id, setId] = useState<string | null>(readAssignedRepId);
+    useEffect(() => {
+        const onChange = (e: Event) => {
+            const detail = (e as CustomEvent).detail as string | null | undefined;
+            setId(detail ?? null);
+        };
+        window.addEventListener(ASSIGNED_REP_EVENT, onChange);
+        return () => window.removeEventListener(ASSIGNED_REP_EVENT, onChange);
+    }, []);
+    return id;
+}
+
+// ─── sc-S.1+ · Priority opp flag (set by Sales Lead during intake review) ────
+// Boolean flag set in sc-S.1 (intake) by the Sales Lead · propagates downstream
+// to all Sales steps for visual differentiation (star chip) + behavior change
+// (expedited SLA gates 12h/24h in sc-S.3 instead of default 24h/48h).
+
+const PRIORITY_KEY = 'officeworks:sales-opp-priority';
+const PRIORITY_EVENT = 'officeworks:sales-opp-priority-change';
+
+export function readOppPriority(): boolean {
+    if (typeof window === 'undefined') return false;
+    return window.sessionStorage.getItem(PRIORITY_KEY) === '1';
+}
+
+export function writeOppPriority(value: boolean): void {
+    if (typeof window === 'undefined') return;
+    if (value) window.sessionStorage.setItem(PRIORITY_KEY, '1');
+    else window.sessionStorage.removeItem(PRIORITY_KEY);
+    window.dispatchEvent(new CustomEvent(PRIORITY_EVENT, { detail: value }));
+}
+
+/** Reactive hook · re-renders when the priority flag changes. */
+export function useOppPriority(): boolean {
+    const [value, setValue] = useState<boolean>(readOppPriority);
+    useEffect(() => {
+        const onChange = (e: Event) => {
+            const detail = (e as CustomEvent).detail as boolean | undefined;
+            setValue(detail === true);
+        };
+        window.addEventListener(PRIORITY_EVENT, onChange);
+        return () => window.removeEventListener(PRIORITY_EVENT, onChange);
+    }, []);
+    return value;
+}

@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { Search, LayoutGrid, MoreHorizontal, Users, Truck, Mail } from 'lucide-react'
+import { Search, LayoutGrid, MoreHorizontal, Users, Truck, Mail, Star } from 'lucide-react'
 import { useDemo } from '../../context/DemoContext'
 import { MANATT_ORDER_META } from './shared/manattOrderData'
 import { stepIdToColIdx } from './shared/funnelStages'
@@ -25,7 +25,7 @@ import {
 } from './shared/manattLaborData'
 import { SALES_ACTOR, SALES_OPPORTUNITIES, SALES_VOLUME_FACTS, SALES_INBOX_THREADS } from './shared/manattSalesData'
 import { useOfficeworksVertical } from './shared/verticalSignal'
-import { useIntakenThreads, resetIntakenThreads, writeSelectedThread, writeShowNewArrival, writeIntakePhase, writeIntakeSource, MANATT_THREAD_ID } from './shared/salesInboxSignal'
+import { useIntakenThreads, resetIntakenThreads, writeSelectedThread, writeShowNewArrival, writeIntakePhase, writeIntakeSource, writeAssignedRepId, writeOppPriority, useOppPriority, MANATT_THREAD_ID } from './shared/salesInboxSignal'
 import CapacityModal from './CapacityModal'
 
 // ─── Funnel columns · per flow ────────────────────────────────────────────────
@@ -251,6 +251,7 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
     const isSales = flowId === 'sales'
     const vertical = useOfficeworksVertical()
     const isWalls = isLD && vertical === 'walls'
+    const isPriorityOpp = useOppPriority()
 
     // Active arrays per flow · same shape, different content.
     const PROCESS_COLUMNS = isSales ? SALES_COLUMNS : isLD ? LD_COLUMNS : SPEC_COLUMNS
@@ -315,6 +316,7 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
         resetIntakenThreads()
         writeSelectedThread(null)
         writeShowNewArrival(false)
+        writeOppPriority(false)        // reset priority flag for clean demo replay
         const open = () => {
             // Notification path · pre-select MANATT + mark as new arrival.
             writeSelectedThread(MANATT_THREAD_ID)
@@ -331,6 +333,13 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
         if (!isSales || currentStep?.id !== 'sc-S.1') return
         writeIntakePhase('source-pick')
         writeIntakeSource(null)
+    }, [isSales, currentStep?.id])
+
+    // Sales sc-S.2 · reset the picked rep so F5 / Back replay arrives with no
+    // assignment · the Strata recommendation still auto-expands but is unselected.
+    useEffect(() => {
+        if (!isSales || currentStep?.id !== 'sc-S.2') return
+        writeAssignedRepId(null)
     }, [isSales, currentStep?.id])
 
     // Non-MANATT emails added to the funnel · rendered as Triage pipeline cards.
@@ -428,7 +437,15 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between gap-1 mb-0.5">
-                                                    <span className="text-sm font-bold text-foreground truncate min-w-0">MANATT</span>
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                        <span className="text-sm font-bold text-foreground truncate">MANATT</span>
+                                                        {isSales && isPriorityOpp && (
+                                                            <span className="inline-flex items-center gap-0.5 rounded border bg-warning/10 text-warning border-warning/30 font-bold uppercase tracking-wider text-[9px] px-1.5 py-0 shrink-0">
+                                                                <Star className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
+                                                                Priority
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${badge.className}`}>
                                                         {badge.label}
                                                     </span>

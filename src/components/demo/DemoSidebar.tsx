@@ -142,6 +142,7 @@ export default function DemoSidebar() {
         accountLeadBadge: 'border-teal-800/50 bg-teal-900/30 text-teal-400',
         projectMgrBadge: 'border-violet-800/50 bg-violet-900/30 text-violet-400',
         financeArBadge: 'border-amber-800/50 bg-amber-900/30 text-amber-400',
+        salesRepBadge: 'border-orange-800/50 bg-orange-900/30 text-orange-400',
         collapsedBg: 'bg-zinc-950',
         collapsedText: 'text-zinc-400',
         collapsedBorder: 'border-zinc-800/50',
@@ -191,6 +192,7 @@ export default function DemoSidebar() {
         accountLeadBadge: 'border-teal-200 bg-teal-50 text-teal-700',
         projectMgrBadge: 'border-violet-200 bg-violet-50 text-violet-700',
         financeArBadge: 'border-amber-200 bg-amber-50 text-amber-700',
+        salesRepBadge: 'border-orange-200 bg-orange-50 text-orange-700',
         collapsedBg: 'bg-white',
         collapsedText: 'text-zinc-500',
         collapsedBorder: 'border-zinc-200',
@@ -404,7 +406,7 @@ export default function DemoSidebar() {
                                         {(() => {
                                             const label = resolveRoleLabel(step.role, step.app);
                                             return (
-                                                <span className={`text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-sm border ${label === 'Facility Manager' ? c.fmBadge : label === 'Facility User' ? c.fuBadge : label === 'Dealer' ? c.dealerBadge : label === 'End User' ? c.endUserBadge : label === 'Sales Coordinator' ? c.scBadge : label === 'Estimator' ? c.estimatorBadge : label === 'Designer' ? c.designerBadge : label === 'Employee' ? c.employeeBadge : label === 'Operations Manager' ? c.opsMgrBadge : label === 'AP Coordinator' ? c.apCoordBadge : label === 'CFO' ? c.cfoBadge : label === 'Account Manager' ? c.accountLeadBadge : label === 'Project Manager' ? c.projectMgrBadge : label === 'Finance / AR' ? c.financeArBadge : label === 'System' ? c.expertBadge : c.expertBadge}`}>
+                                                <span className={`text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-sm border ${label === 'Facility Manager' ? c.fmBadge : label === 'Facility User' ? c.fuBadge : label === 'Dealer' ? c.dealerBadge : label === 'End User' ? c.endUserBadge : label === 'Sales Coordinator' ? c.scBadge : label === 'Estimator' ? c.estimatorBadge : label === 'Designer' ? c.designerBadge : label === 'Employee' ? c.employeeBadge : label === 'Operations Manager' ? c.opsMgrBadge : label === 'AP Coordinator' ? c.apCoordBadge : label === 'CFO' ? c.cfoBadge : label === 'Account Manager' ? c.accountLeadBadge : label === 'Project Manager' ? c.projectMgrBadge : label === 'Finance / AR' ? c.financeArBadge : label === 'System' ? c.expertBadge : label.startsWith('Sales Rep') ? c.salesRepBadge : c.expertBadge}`}>
                                                     {label === 'Facility Manager' ? 'FACILITY MANAGER' : label === 'Facility User' ? 'FACILITY USER' : label}
                                                 </span>
                                             );

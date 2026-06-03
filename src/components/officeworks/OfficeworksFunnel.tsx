@@ -25,7 +25,7 @@ import {
 } from './shared/manattLaborData'
 import { SALES_ACTOR, SALES_OPPORTUNITIES, SALES_VOLUME_FACTS, SALES_INBOX_THREADS } from './shared/manattSalesData'
 import { useOfficeworksVertical } from './shared/verticalSignal'
-import { useIntakenThreads, resetIntakenThreads, writeSelectedThread, writeShowNewArrival, writeIntakePhase, writeIntakeSource, writeAssignedRepId, writeOppPriority, useOppPriority, MANATT_THREAD_ID } from './shared/salesInboxSignal'
+import { useIntakenThreads, resetIntakenThreads, writeSelectedThread, writeShowNewArrival, writeIntakePhase, writeIntakeSource, writeAssignedRepId, writeOppPriority, useOppPriority, writeCapacityPhase, MANATT_THREAD_ID } from './shared/salesInboxSignal'
 import CapacityModal from './CapacityModal'
 
 // ─── Funnel columns · per flow ────────────────────────────────────────────────
@@ -60,7 +60,9 @@ const SALES_BADGE: Record<number, { label: string; className: string }> = {
     0: { label: 'Triaged',       className: 'bg-ai/10 text-ai border border-ai/20' },
     1: { label: 'Assigned',      className: 'bg-info/10 text-info border border-info/20' },
     2: { label: 'Qualifying',    className: 'bg-warning/10 text-warning border border-warning/20' },
-    3: { label: 'Proposal',      className: 'bg-primary/10 text-primary border border-primary/20' },
+    // Proposal · text-primary (lime brand) failed WCAG on white card · use
+    // text-foreground on a primary-tinted background to preserve identity.
+    3: { label: 'Proposal',      className: 'bg-primary/20 text-foreground border border-primary/40' },
     4: { label: 'Won',           className: 'bg-success/10 text-success border border-success/20' },
 }
 
@@ -89,7 +91,9 @@ const SPEC_BADGE: Record<number, { label: string; className: string }> = {
     0: { label: 'New Form',        className: 'bg-ai/10 text-ai border border-ai/20' },
     1: { label: 'In Design',       className: 'bg-info/10 text-info border border-info/20' },
     2: { label: 'Self + Peer',     className: 'bg-warning/10 text-warning border border-warning/20' },
-    3: { label: 'SP4 sent',        className: 'bg-primary/10 text-primary border border-primary/20' },
+    // SP4 sent · text-primary (lime brand) failed WCAG on white card · use
+    // text-foreground on a primary-tinted background to preserve identity.
+    3: { label: 'SP4 sent',        className: 'bg-primary/20 text-foreground border border-primary/40' },
     4: { label: 'Ack received',    className: 'bg-success/10 text-success border border-success/20' },
 }
 
@@ -144,7 +148,9 @@ const SPEC_CONTEXT_CARDS: ContextCard[] = [
     {
         code: 'GSA-DC2-0892', initials: 'GSA', client: 'GSA · DC2 (price-protected)',
         value: '$76,500', colIdx: 3,
-        avatarBg: 'bg-primary/20', avatarColor: 'text-primary',
+        // Avatar uses a brand-tinted background but foreground text · avoids
+        // text-primary (lime) which fails WCAG contrast on white card.
+        avatarBg: 'bg-primary/20', avatarColor: 'text-foreground',
         desc: 'SP4 in NetSuite · awaiting Caitlin to release PO',
         designer: 'Sandra Park (DC)',
     },
@@ -341,9 +347,11 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
 
     // Sales sc-S.2 · reset the picked rep so F5 / Back replay arrives with no
     // assignment · the Strata recommendation still auto-expands but is unselected.
+    // Also reset the 3-phase narrative bridge so it plays from 'resolved' on entry.
     useEffect(() => {
         if (!isSales || currentStep?.id !== 'sc-S.2') return
         writeAssignedRepId(null)
+        writeCapacityPhase('resolved')
     }, [isSales, currentStep?.id])
 
     // Non-MANATT emails added to the funnel · rendered as Triage pipeline cards.
@@ -503,11 +511,14 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
                                     </div>
                                 )}
 
-                                {/* Context cards (other projects in this column) */}
+                                {/* Context cards (other projects in this column).
+                                    Recessed look via bg-muted instead of opacity-60 ·
+                                    opacity crushed text contrast (WCAG fail in light mode) ·
+                                    bg-muted preserves readable text + clear visual hierarchy. */}
                                 {colCards.map(card => (
                                     <div
                                         key={card.code}
-                                        className="rounded-2xl border border-border bg-card p-3.5 space-y-2.5 shadow-sm opacity-60 pointer-events-none"
+                                        className="rounded-2xl border border-border bg-muted/30 p-3.5 space-y-2.5 shadow-sm pointer-events-none"
                                     >
                                         <div className="flex items-center gap-2.5">
                                             <div className={`h-8 w-8 rounded-full ${card.avatarBg} flex items-center justify-center shrink-0 ring-2 ring-white dark:ring-zinc-900`}>

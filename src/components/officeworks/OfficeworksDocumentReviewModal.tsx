@@ -48,7 +48,7 @@ import {
     type IntakeSourceCard,
 } from './shared/manattSalesData'
 import { useOfficeworksVertical } from './shared/verticalSignal'
-import { useSelectedThread, writeSelectedThread, useIntakenThreads, addIntakenThread, useShowNewArrival, useIntakePhase, writeIntakePhase, useIntakeSource, writeIntakeSource, useAssignedRepId, writeAssignedRepId, useOppPriority, writeOppPriority, MANATT_THREAD_ID } from './shared/salesInboxSignal'
+import { useSelectedThread, writeSelectedThread, useIntakenThreads, addIntakenThread, useShowNewArrival, useIntakePhase, writeIntakePhase, useIntakeSource, writeIntakeSource, useAssignedRepId, writeAssignedRepId, useOppPriority, writeOppPriority, useCapacityPhase, writeCapacityPhase, MANATT_THREAD_ID } from './shared/salesInboxSignal'
 import { OFFICEWORKS_FUNNEL } from './shared/funnelStages'
 import CapacityHeatmap from './shared/CapacityHeatmap'
 import BlueprintFloorPlan from './shared/BlueprintFloorPlan'
@@ -6820,15 +6820,37 @@ function SalesOppIntakePanel({ onValidate }: LDPanelProps) {
 }
 
 // ─── sc-S.2 · Rep Capacity Ledger · master-detail RIGHT panel ───────────────
+// 3-phase narrative (shared via useCapacityPhase signal so LEFT + RIGHT sync):
+//   1. 'resolved'   · "Client clarified · 4 fields resolved" bridge card from
+//                     the sc-S.1 clarification send · ~6000ms · auto-advance.
+//                     Long enough that the user can read all 4 resolved fields.
+//   2. 'processing' · cascade "Pulling capacity · Cross-referencing prior
+//                     wins · Computing best-fit rep" · ~2500ms · auto-advance.
+//   3. 'capacity'   · current master-detail view (rep ledger + detail card).
+//
 // LEFT panel (SalesCapacityLedgerPreview) is the master list · click a rep
 // there → writes salesAssignedRepId signal → this RIGHT panel re-renders the
 // detail card for that rep. If no user click yet, the detail defaults to the
 // Strata recommendation so the panel is never empty.
+
 function SalesCapacityPanel({ onValidate }: LDPanelProps) {
     const selectedId = useAssignedRepId()
     const effectiveId = selectedId ?? SALES_REP_RECOMMENDATION.repId
     const rep = SALES_REPS.find(r => r.id === effectiveId)!
     const isUserSelection = !!selectedId
+
+    // ── 3-phase narrative bridge from sc-S.1 clarification send ────────────
+    const phase = useCapacityPhase()
+    useEffect(() => {
+        if (phase !== 'resolved') return
+        const t = setTimeout(() => writeCapacityPhase('processing'), 6000)
+        return () => clearTimeout(t)
+    }, [phase])
+    useEffect(() => {
+        if (phase !== 'processing') return
+        const t = setTimeout(() => writeCapacityPhase('capacity'), 2500)
+        return () => clearTimeout(t)
+    }, [phase])
 
     // ── Auto match-assessment (replaces the v1 checkbox) ────────────────────
     // MANATT-4F is a DC furniture opp · derive 4 quality signals from the rep.
@@ -6843,6 +6865,107 @@ function SalesCapacityPanel({ onValidate }: LDPanelProps) {
     const canProceed = isUserSelection
     const shortLabel = rep.label.replace('Sales ', '')
 
+    // Phase 1: client-response resolved
+    if (phase === 'resolved') {
+        return (
+            <>
+                <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+                    <SalesPanelHero
+                        stage="sales-capacity"
+                        title="Client clarified · 4 fields resolved"
+                        subtitle="Caitlin Barolet replied · Works form prereqs cleared · proceeding to rep capacity review"
+                    />
+                    <div className="rounded-xl border border-success/30 bg-success/5 overflow-hidden">
+                        <div className="px-4 py-2.5 bg-card border-b border-success/30 flex items-center gap-2">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden="true" />
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">Resolved · client reply received</span>
+                            <span className="ml-auto text-[10px] text-muted-foreground italic">2 min ago</span>
+                        </div>
+                        <ul className="divide-y divide-success/20 bg-card">
+                            <li className="px-4 py-2.5 flex items-start gap-3 text-[11px]">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" aria-hidden="true" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-foreground font-semibold">CAD file</div>
+                                    <div className="text-muted-foreground text-[10px] mt-0.5">
+                                        Was: <em>PDF floor plan · needs DWG</em> · Now: <strong className="text-foreground not-italic">MANATT-4F-floor-plan.dwg attached</strong>
+                                    </div>
+                                </div>
+                            </li>
+                            <li className="px-4 py-2.5 flex items-start gap-3 text-[11px]">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" aria-hidden="true" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-foreground font-semibold">SQ number</div>
+                                    <div className="text-muted-foreground text-[10px] mt-0.5">
+                                        Was: <em>missing</em> · Now: <strong className="text-foreground not-italic">#436533 · GSA price-protected · 2025 catalog</strong>
+                                    </div>
+                                </div>
+                            </li>
+                            <li className="px-4 py-2.5 flex items-start gap-3 text-[11px]">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" aria-hidden="true" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-foreground font-semibold">Scope detail</div>
+                                    <div className="text-muted-foreground text-[10px] mt-0.5">
+                                        Was: <em>missing</em> · Now: <strong className="text-foreground not-italic">120 workstations · refresh-only · no private offices</strong>
+                                    </div>
+                                </div>
+                            </li>
+                            <li className="px-4 py-2.5 flex items-start gap-3 text-[11px]">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" aria-hidden="true" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-foreground font-semibold">Timeline / move-in</div>
+                                    <div className="text-muted-foreground text-[10px] mt-0.5">
+                                        Was: <em>2026-08-30 · guess</em> · Now: <strong className="text-foreground not-italic">2026-08-30 confirmed by Caitlin</strong>
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                    <div className="rounded-lg border border-ai/30 bg-ai/5 px-3 py-2 flex items-start gap-2">
+                        <Sparkles className="h-3.5 w-3.5 text-ai shrink-0 mt-0.5" aria-hidden="true" />
+                        <div className="text-[11px] text-foreground">
+                            <strong className="text-ai">Strata · </strong>
+                            All prereqs met · Works form ready to route · pulling rep capacity ledger…
+                        </div>
+                    </div>
+                </div>
+                <SalesStickyCTA
+                    label="Pulling capacity ledger…"
+                    onClick={() => {}}
+                    disabled
+                    secondaryNote="Strata is fetching live Copper events · including revisions + rework · ~2s."
+                />
+            </>
+        )
+    }
+
+    // Phase 2: processing cascade
+    if (phase === 'processing') {
+        const processingSteps: SendStep[] = [
+            { label: 'Pulling capacity ledger from Copper events', detail: '5 reps · Mid-Atlantic · revisions + rework included', durationMs: 500 },
+            { label: 'Cross-referencing prior wins with MANATT account', detail: 'Account history · GC referrer Hayes Construction · 3 prior projects', durationMs: 500 },
+            { label: 'Computing best-fit rep recommendation', detail: 'Territory + prior wins + load + response SLA', durationMs: 500 },
+        ]
+        return (
+            <>
+                <div className="relative flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+                    <SendOverlay steps={processingSteps} />
+                    <SalesPanelHero
+                        stage="sales-capacity"
+                        title="Reviewing rep capacity"
+                        subtitle="Pulling live capacity ledger from Copper events · ~1.5s"
+                    />
+                </div>
+                <SalesStickyCTA
+                    label="Reviewing…"
+                    onClick={() => {}}
+                    disabled
+                    secondaryNote="Strata is computing the best-fit rep recommendation."
+                />
+            </>
+        )
+    }
+
+    // Phase 3: actual capacity view
     return (
         <>
             <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
@@ -8540,6 +8663,15 @@ function SalesOppRecordDraftView({ phase }: { phase: 'refining' | 'saving' }) {
 // ─── sales-capacity-ledger ──────────────────────────────────────────────────
 function SalesCapacityLedgerPreview() {
     const selectedId = useAssignedRepId()
+    const phase = useCapacityPhase()
+
+    // During the 3-phase narrative bridge (resolved + processing), the LEFT
+    // panel mirrors the right-panel moment · showing the resolved opp record
+    // instead of the capacity ledger which doesn't apply yet at that point.
+    if (phase === 'resolved' || phase === 'processing') {
+        return <SalesResolvedRecordPreview />
+    }
+
     return (
         <SalesPreviewShell icon={Users} filename="capacity-ledger.pdf" size="22 KB" statusBadge={{ label: 'Live · Copper mock', tone: 'info' }}>
             <div className="text-[11px] text-muted-foreground">{SALES_REPS.length} reps · 3 regions · Copper events (read-only mock) · click a rep to see the detail on the right.</div>
@@ -8548,6 +8680,73 @@ function SalesCapacityLedgerPreview() {
                 onSelect={writeAssignedRepId}
                 selectedId={selectedId}
             />
+        </SalesPreviewShell>
+    )
+}
+
+// ─── sc-S.2 · Resolved opp record preview (LEFT panel during bridge phases) ──
+// Shown while the capacity phase is 'resolved' or 'processing' · mirrors the
+// post-clarification state of the opp record with all 4 previously-missing
+// fields now confirmed by the client. Keeps the LEFT panel in sync with the
+// RIGHT panel's narrative bridge.
+function SalesResolvedRecordPreview() {
+    const opp = SALES_OPPORTUNITIES[0]
+    return (
+        <SalesPreviewShell
+            icon={FileText}
+            filename={`opp-${opp.projectCode}.json`}
+            size="6 KB"
+            statusBadge={{ label: 'Clarifications resolved · ready to route', tone: 'success' }}
+        >
+            <div className="rounded-xl border border-success/30 bg-success/5 p-3 flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="text-[11px] text-foreground leading-relaxed">
+                    <strong className="text-success">Caitlin Barolet replied · 4 Works form fields cleared.</strong>
+                    {' '}Strata refreshed the opp record · all prereqs met · proceeding to rep capacity review.
+                </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <div className="px-4 py-3 bg-muted/30 border-b border-border">
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Opportunity record · Copper (saved after clarifications)</div>
+                    <div className="text-sm font-bold text-foreground mt-0.5">{opp.company}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">{opp.projectCode} · {opp.vertical} · {opp.market}</div>
+                </div>
+                <ul className="divide-y divide-border text-[11px]">
+                    <li className="px-4 py-2 flex items-start gap-3">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" aria-hidden="true" />
+                        <span className="text-muted-foreground w-32 shrink-0">CAD file</span>
+                        <span className="text-foreground flex-1 font-medium">MANATT-4F-floor-plan.dwg</span>
+                    </li>
+                    <li className="px-4 py-2 flex items-start gap-3">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" aria-hidden="true" />
+                        <span className="text-muted-foreground w-32 shrink-0">SQ number</span>
+                        <span className="text-foreground flex-1 font-medium">#436533 · GSA price-protected · 2025</span>
+                    </li>
+                    <li className="px-4 py-2 flex items-start gap-3">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" aria-hidden="true" />
+                        <span className="text-muted-foreground w-32 shrink-0">Scope detail</span>
+                        <span className="text-foreground flex-1 font-medium">120 workstations · refresh-only · no private offices</span>
+                    </li>
+                    <li className="px-4 py-2 flex items-start gap-3">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" aria-hidden="true" />
+                        <span className="text-muted-foreground w-32 shrink-0">Timeline / move-in</span>
+                        <span className="text-foreground flex-1 font-medium">2026-08-30 confirmed by Caitlin</span>
+                    </li>
+                    <li className="px-4 py-2 flex items-center justify-between text-[11px]"><span className="text-muted-foreground">Company</span><span className="text-foreground">{opp.company}</span></li>
+                    <li className="px-4 py-2 flex items-center justify-between text-[11px]"><span className="text-muted-foreground">Est value</span><span className="text-foreground font-bold tabular-nums">${opp.estValueUSD.toLocaleString()}</span></li>
+                    <li className="px-4 py-2 flex items-center justify-between text-[11px]"><span className="text-muted-foreground">Vertical</span><span className="text-foreground">{opp.vertical}</span></li>
+                    <li className="px-4 py-2 flex items-center justify-between text-[11px]"><span className="text-muted-foreground">Market</span><span className="text-foreground">{opp.market}</span></li>
+                    <li className="px-4 py-2 flex items-center justify-between text-[11px]"><span className="text-muted-foreground">Account type</span><span className="text-foreground">{opp.accountType}</span></li>
+                    <li className="px-4 py-2 flex items-center justify-between text-[11px]"><span className="text-muted-foreground">Copper stage</span><span className="text-foreground">25% · Actively pursuing</span></li>
+                    <li className="px-4 py-2 flex items-center justify-between text-[11px] bg-success/5"><span className="text-muted-foreground">Works form</span><span className="text-success font-semibold">complete · ready to route</span></li>
+                </ul>
+            </div>
+
+            <div className="text-[10px] text-muted-foreground italic px-1 flex items-center gap-1">
+                <Sparkles className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                Source: opp record after Caitlin's clarification reply · all prereqs met.
+            </div>
         </SalesPreviewShell>
     )
 }

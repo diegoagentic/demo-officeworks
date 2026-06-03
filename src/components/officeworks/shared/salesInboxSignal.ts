@@ -236,6 +236,45 @@ export function useAssignedRepId(): string | null {
     return id;
 }
 
+// ─── sc-S.2 · Capacity phase (3-phase narrative bridge from sc-S.1) ──────────
+// resolved   · "Client clarified · 4 fields resolved" recap view (~6s).
+// processing · "Pulling capacity · Computing best-fit rep" cascade (~2.5s).
+// capacity   · current master-detail capacity view.
+// Shared via signal so the LEFT panel (SalesCapacityLedgerPreview) and RIGHT
+// panel (SalesCapacityPanel) render the same phase in sync.
+
+export type CapacityPhase = 'resolved' | 'processing' | 'capacity';
+
+const CAPACITY_PHASE_KEY = 'officeworks:sales-capacity-phase';
+const CAPACITY_PHASE_EVENT = 'officeworks:sales-capacity-phase-change';
+const VALID_CAPACITY_PHASES: CapacityPhase[] = ['resolved', 'processing', 'capacity'];
+
+export function readCapacityPhase(): CapacityPhase {
+    if (typeof window === 'undefined') return 'resolved';
+    const raw = window.sessionStorage.getItem(CAPACITY_PHASE_KEY);
+    return VALID_CAPACITY_PHASES.includes(raw as CapacityPhase) ? (raw as CapacityPhase) : 'resolved';
+}
+
+export function writeCapacityPhase(phase: CapacityPhase): void {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(CAPACITY_PHASE_KEY, phase);
+    window.dispatchEvent(new CustomEvent(CAPACITY_PHASE_EVENT, { detail: phase }));
+}
+
+/** Reactive hook · re-renders when the capacity phase changes. */
+export function useCapacityPhase(): CapacityPhase {
+    const [phase, setPhase] = useState<CapacityPhase>(readCapacityPhase);
+    useEffect(() => {
+        const onChange = (e: Event) => {
+            const detail = (e as CustomEvent).detail as CapacityPhase | undefined;
+            setPhase(detail && VALID_CAPACITY_PHASES.includes(detail) ? detail : readCapacityPhase());
+        };
+        window.addEventListener(CAPACITY_PHASE_EVENT, onChange);
+        return () => window.removeEventListener(CAPACITY_PHASE_EVENT, onChange);
+    }, []);
+    return phase;
+}
+
 // ─── sc-S.1+ · Priority opp flag (set by Sales Lead during intake review) ────
 // Boolean flag set in sc-S.1 (intake) by the Sales Lead · propagates downstream
 // to all Sales steps for visual differentiation (star chip) + behavior change

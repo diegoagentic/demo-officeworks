@@ -251,11 +251,12 @@ export default function DemoSidebar() {
                 </div>
                 <p className={`text-xs ${c.textDim}`}>Guided Experience Simulation</p>
 
-                {/* Officeworks · Flow dropdown selector (Spec Check · Labor & Delivery · Sales) */}
+                {/* Officeworks · Flow dropdown selector (Spec Check · Sales).
+                    Labor & Delivery temporarily hidden — re-add to FLOW_OPTIONS when ready. */}
                 {isOfficeworks && (() => {
                     const FLOW_OPTIONS = [
                         { id: 'spec-check'    as const, label: 'Spec Check & Design', count: flowCounts.specCheck },
-                        { id: 'labor-delivery' as const, label: 'Labor & Delivery',    count: flowCounts.laborDelivery },
+                        // { id: 'labor-delivery' as const, label: 'Labor & Delivery',    count: flowCounts.laborDelivery },
                         { id: 'sales'         as const, label: 'Sales',                count: flowCounts.sales },
                     ]
                     const activeOpt = FLOW_OPTIONS.find(f => f.id === activeFlow) ?? FLOW_OPTIONS[0]

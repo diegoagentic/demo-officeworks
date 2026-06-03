@@ -8200,11 +8200,155 @@ function SalesProposalPanel({ onValidate }: LDPanelProps) {
     )
 }
 
+// ─── sc-S.7 · HandoffReviewDialog · non-email confirmation before triggering ──
+// PP S7 (BPMN) gate. The "send" here isn't email — it's the orchestrator firing
+// 4 downstream events (packet build + Spec Check trigger + L&D trigger + Coordinator
+// NetSuite task). This modal lets the rep review exactly what will fire before
+// confirming, satisfying the "no auto-send · human approves" rule for actions
+// with downstream system impact.
+interface HandoffReviewDialogProps {
+    isOpen: boolean
+    onClose: () => void
+    onConfirm: () => void
+    route: typeof SALES_HANDOFF_ROUTES[number]
+    estValueUSD: number
+    sendSteps: SendStep[]
+}
+
+function HandoffReviewDialog({ isOpen, onClose, onConfirm, route, estValueUSD, sendSteps }: HandoffReviewDialogProps) {
+    return (
+        <Transition appear show={isOpen} as={Fragment}>
+            <Dialog as="div" className="relative z-50" onClose={onClose}>
+                <TransitionChild
+                    as={Fragment}
+                    enter="ease-out duration-200"
+                    enterFrom="opacity-0"
+                    enterTo="opacity-100"
+                    leave="ease-in duration-150"
+                    leaveFrom="opacity-100"
+                    leaveTo="opacity-0"
+                >
+                    <div className="fixed inset-0 bg-foreground/40 backdrop-blur-sm" aria-hidden="true" />
+                </TransitionChild>
+                <div className="fixed inset-0 overflow-y-auto">
+                    <div className="flex min-h-full items-center justify-center p-4">
+                        <TransitionChild
+                            as={Fragment}
+                            enter="ease-out duration-200"
+                            enterFrom="opacity-0 scale-95"
+                            enterTo="opacity-100 scale-100"
+                            leave="ease-in duration-150"
+                            leaveFrom="opacity-100 scale-100"
+                            leaveTo="opacity-0 scale-95"
+                        >
+                            <DialogPanel className="w-full max-w-2xl rounded-xl border border-border bg-card shadow-lg overflow-hidden flex flex-col max-h-[85vh]">
+                                {/* Header */}
+                                <div className="px-5 py-4 border-b border-border bg-card flex items-start gap-3">
+                                    <div className="h-9 w-9 rounded-lg bg-ai/10 flex items-center justify-center shrink-0">
+                                        <ClipboardCheck className="h-4 w-4 text-ai" aria-hidden="true" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-bold text-foreground">Review handoff before triggering</div>
+                                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                                            MANATT-4F · won · ${(estValueUSD / 1_000_000).toFixed(2)}M · route: <span className="text-foreground font-medium">{route.label}</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={onClose}
+                                        aria-label="Close review"
+                                        className="shrink-0 h-7 w-7 rounded-md inline-flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                    >
+                                        <X className="h-4 w-4" aria-hidden="true" />
+                                    </button>
+                                </div>
+
+                                {/* Body */}
+                                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                                    {/* Section 1 · Handoff packet */}
+                                    <div className="rounded-xl border border-border bg-card overflow-hidden">
+                                        <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center gap-2">
+                                            <FileText className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />
+                                            <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">Handoff packet · what gets handed over</span>
+                                        </div>
+                                        <ul className="divide-y divide-border">
+                                            {SALES_HANDOFF_PACKET.map(f => (
+                                                <li key={f.label} className="px-4 py-2 flex items-start gap-3 text-[11px]">
+                                                    <span className="text-muted-foreground w-32 shrink-0">{f.label}</span>
+                                                    <span className="text-foreground flex-1">{f.value}</span>
+                                                    <span className="text-[9px] text-muted-foreground italic shrink-0">{f.source}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+
+                                    {/* Section 2 · Downstream flows */}
+                                    <div className="rounded-xl border border-ai/30 bg-ai/5 overflow-hidden">
+                                        <div className="px-4 py-2.5 bg-card border-b border-ai/20 flex items-center gap-2">
+                                            <Sparkles className="h-3.5 w-3.5 text-ai" aria-hidden="true" />
+                                            <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">Downstream flows that will trigger</span>
+                                            <span className="ml-auto text-[10px] text-muted-foreground">{sendSteps.length} event{sendSteps.length === 1 ? '' : 's'}</span>
+                                        </div>
+                                        <ul className="divide-y divide-ai/20 bg-card">
+                                            {sendSteps.map((step, i) => (
+                                                <li key={step.label} className="px-4 py-2.5 flex items-start gap-3 text-[11px]">
+                                                    <div className="h-5 w-5 rounded-md bg-ai/10 flex items-center justify-center shrink-0 mt-0.5">
+                                                        <Zap className="h-3 w-3 text-ai" aria-hidden="true" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-foreground font-medium">{i + 1}. {step.label}</div>
+                                                        {step.detail && (
+                                                            <div className="text-[10px] text-muted-foreground mt-0.5">{step.detail}</div>
+                                                        )}
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+
+                                    {/* Disclaimer */}
+                                    <div className="rounded-lg border border-warning/20 bg-warning/5 px-4 py-2.5 flex items-start gap-2">
+                                        <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" aria-hidden="true" />
+                                        <div className="text-[11px] text-foreground">
+                                            <span className="font-semibold text-warning">Strata triggers the orchestrator · you confirm before it fires.</span>{' '}
+                                            <span className="text-muted-foreground">No auto-send · the Coordinator NetSuite task and downstream flows only fire when you click Confirm.</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="px-5 py-3 border-t border-border bg-card flex items-center justify-end gap-2 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={onClose}
+                                        className="inline-flex items-center justify-center h-9 px-4 rounded-md text-[12px] font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={onConfirm}
+                                        className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-md text-[12px] font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                                    >
+                                        Confirm &amp; trigger
+                                        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                                    </button>
+                                </div>
+                            </DialogPanel>
+                        </TransitionChild>
+                    </div>
+                </div>
+            </Dialog>
+        </Transition>
+    )
+}
+
 // ─── sc-S.7 · Close + Handoff ───────────────────────────────────────────────
 function SalesHandoffPanel({ onValidate }: LDPanelProps) {
     const [outcome, setOutcome] = useState<'won' | 'lost' | 'pending'>('won')
     const [route, setRoute] = useState<string>('route-furn')
     const [isSending, setIsSending] = useState(false)
+    const [reviewOpen, setReviewOpen] = useState(false)
 
     // Send simulation · BPMN PP7 orchestrator triggers next step on completion.
     const sendSteps: SendStep[] = outcome === 'won' ? [
@@ -8217,8 +8361,16 @@ function SalesHandoffPanel({ onValidate }: LDPanelProps) {
         { label: outcome === 'lost' ? 'Logging loss reason · feeding lost-deal cost reporting (S3 painpoint)' : 'Logging pending status · queueing follow-up', durationMs: 400 },
         { label: 'Returning to dashboard', durationMs: 300 },
     ]
+    // won → open review modal first · lost/pending → fire immediately (trivial logs)
     const handleSend = () => {
         if (isSending) return
+        if (outcome === 'won') { setReviewOpen(true); return }
+        setIsSending(true)
+        const totalMs = sendSteps.reduce((s, x) => s + x.durationMs, 0)
+        setTimeout(() => onValidate(), totalMs + 200)
+    }
+    const handleConfirmHandoff = () => {
+        setReviewOpen(false)
         setIsSending(true)
         const totalMs = sendSteps.reduce((s, x) => s + x.durationMs, 0)
         setTimeout(() => onValidate(), totalMs + 200)
@@ -8317,6 +8469,16 @@ function SalesHandoffPanel({ onValidate }: LDPanelProps) {
                 onClick={handleSend}
                 disabled={isSending}
                 secondaryNote="Strata never auto-creates the NetSuite SO · the Sales Coordinator gets the prefilled task."
+            />
+
+            {/* Review modal · only used when outcome='won' before firing orchestrator events */}
+            <HandoffReviewDialog
+                isOpen={reviewOpen}
+                onClose={() => setReviewOpen(false)}
+                onConfirm={handleConfirmHandoff}
+                route={SALES_HANDOFF_ROUTES.find(r => r.id === route) ?? SALES_HANDOFF_ROUTES[0]}
+                estValueUSD={SALES_OPPORTUNITIES[0].estValueUSD}
+                sendSteps={sendSteps}
             />
         </>
     )

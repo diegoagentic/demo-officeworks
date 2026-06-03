@@ -73,7 +73,13 @@ function stepIdToStage(stepId: string | undefined): OfficeworksReviewStage {
 //   same rep starting qualification work · closing the modal + sending a fresh
 //   notification for their own next action is redundant (notification entry
 //   removed from ActionCenter).
-const STAYS_OPEN_WITHIN_FLOW2 = new Set(['sc1.2', 'sc-S.0', 'sc-S.3'])
+// - sc-S.4 · Sales Rep just saved the discovery checklist · sc-S.5 (outreach
+//   drafts) is the same rep composing multi-channel responses to the client ·
+//   same continuity reason · notification entry removed from ActionCenter.
+// - sc-S.5 · Sales Rep just sent the outreach drafts · sc-S.6 (proposal) is
+//   the same rep reviewing the assembled proposal before sending · same
+//   continuity reason · notification entry removed from ActionCenter.
+const STAYS_OPEN_WITHIN_FLOW2 = new Set(['sc1.2', 'sc-S.0', 'sc-S.3', 'sc-S.4', 'sc-S.5'])
 
 // ─── Officeworks notification events (dispatched by ActionCenter) ─────────────
 // Per P52 contract: every officeworks: custom event opens the review modal.

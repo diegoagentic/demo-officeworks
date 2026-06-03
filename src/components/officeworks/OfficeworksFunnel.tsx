@@ -291,9 +291,13 @@ export default function OfficeworksFunnel({ onOpenReview, hideReviewCta = false,
     }, [currentStep?.id, firstStepId, ingestEvent])
 
     // Sales · the MANATT card enters the funnel only when its email is picked
-    // from the inbox (intake). Other flows keep the ingest-animation gate.
+    // from the inbox (intake) at sc-S.0. From sc-S.1 onwards (any step past
+    // the first one) the card is ALWAYS visible · this matches the Spec
+    // Check / L&D pattern and gives the rep an affordance to re-open the
+    // review modal at any moment if they dismissed the notification or
+    // closed the modal mid-flow.
     const manattVisible = isSales
-        ? intakenThreads.includes(MANATT_THREAD_ID)
+        ? (currentStep?.id !== firstStepId || intakenThreads.includes(MANATT_THREAD_ID))
         : (currentStep?.id !== firstStepId || manattIngested)
 
     // Stable ref so the inbox-ingest useEffect below doesn't re-fire (and reset

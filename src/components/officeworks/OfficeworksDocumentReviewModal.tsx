@@ -252,7 +252,7 @@ const STAGE_TABS: Partial<Record<OfficeworksReviewStage, DocTab[]>> = {
     'sales-capacity':    ['sales-capacity-ledger', 'sales-opp-record'],
     'sales-assign':      ['sales-opp-record', 'sales-thread-detail'],
     'sales-discovery':   ['sales-thread-detail', 'sales-account-history', 'sales-opp-record'],
-    'sales-outreach':    ['sales-outreach-draft', 'sales-thread-detail'],
+    'sales-outreach':    ['sales-thread-detail', 'sales-discovery-notes', 'sales-opp-record'],
     'sales-proposal':    ['sales-proposal-pdf', 'sales-quote-detail', 'sales-outreach-draft'],
     'sales-handoff':     ['sales-handoff-packet', 'sales-win-loss'],
 }
@@ -294,7 +294,7 @@ const DEFAULT_DOC: Record<OfficeworksReviewStage, DocTab> = {
     'sales-capacity':    'sales-capacity-ledger',
     'sales-assign':      'sales-opp-record',
     'sales-discovery':   'sales-thread-detail',
-    'sales-outreach':    'sales-outreach-draft',
+    'sales-outreach':    'sales-thread-detail',
     'sales-proposal':    'sales-proposal-pdf',
     'sales-handoff':     'sales-handoff-packet',
 }
@@ -5889,6 +5889,64 @@ function SalesPreviewShell({ icon: Icon, filename, size, statusBadge, children }
     )
 }
 
+// ─── Helper · SendOverlay (sc-S.5/S.6/S.7 send simulation) ──────────────────
+// Renders a centered overlay above the panel content during the rep-authorized
+// send action. Each step shows a spinner → check icon as the cascade timers
+// fire. Reused across the outreach send, proposal send, and handoff send · all
+// of which represent the BPMN PP5/S3 "approve / edit / send" moment.
+interface SendStep {
+    label: string
+    detail?: string
+    durationMs: number
+}
+
+function SendOverlay({ steps }: { steps: SendStep[] }) {
+    const [activeIdx, setActiveIdx] = useState(0)
+    useEffect(() => {
+        const timers: ReturnType<typeof setTimeout>[] = []
+        let cumulative = 0
+        steps.forEach((s, i) => {
+            cumulative += s.durationMs
+            timers.push(setTimeout(() => setActiveIdx(i + 1), cumulative))
+        })
+        return () => timers.forEach(clearTimeout)
+    }, [steps])
+    return (
+        <div className="absolute inset-0 z-20 bg-card/95 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="rounded-xl border border-ai/30 bg-card p-5 max-w-md w-full shadow-lg space-y-1">
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-ai font-bold mb-3">
+                    <Sparkles className="h-4 w-4" aria-hidden="true" /> Strata · sending
+                </div>
+                {steps.map((s, i) => {
+                    const isDone = i < activeIdx
+                    const isActive = i === activeIdx
+                    return (
+                        <div key={s.label} className="flex items-start gap-3 py-1.5">
+                            <div className="shrink-0 mt-0.5">
+                                {isDone ? (
+                                    <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />
+                                ) : isActive ? (
+                                    <Loader2 className="h-4 w-4 text-ai animate-spin" aria-hidden="true" />
+                                ) : (
+                                    <div className="h-4 w-4 rounded-full border border-border" />
+                                )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className={`text-[12px] font-semibold ${isActive || isDone ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                    {s.label}
+                                </div>
+                                {s.detail && (
+                                    <div className="text-[10px] text-muted-foreground italic mt-0.5 leading-snug">{s.detail}</div>
+                                )}
+                            </div>
+                        </div>
+                    )
+                })}
+            </div>
+        </div>
+    )
+}
+
 // ─── Helper · Panel hero header (consistent across panels) ───────────────────
 // Auto-renders the PriorityChip inline with the title when the salesOppPriority
 // signal is true. Reads the signal directly so no opt-in prop is needed.
@@ -7451,10 +7509,15 @@ function DiscoveryRow({
     onEdit,
 }: {
     field: typeof SALES_DISCOVERY_TEMPLATE[number]
-    edits: Record<string, DiscoveryEdit>
-    onEdit: (key: string, value: string, confidence: DiscoveryConfidence) => void
+    edits?: Record<string, DiscoveryEdit>
+    onEdit?: (key: string, value: string, confidence: DiscoveryConfidence) => void
 }) {
-    const edit = edits[field.key]
+    // Edit mode is active when both edits + onEdit are provided · used in the
+    // sc-S.4 RIGHT panel (SalesDiscoveryPanel). Without those props the row
+    // renders read-only · used in the sc-S.5 LEFT evidence-pack tab
+    // (SalesDiscoveryNotesPreview) where the rep references but does not edit.
+    const isEditable = Boolean(edits && onEdit)
+    const edit = edits?.[field.key]
     const effectiveValue = edit?.value ?? field.value ?? ''
     const effectiveConfidence = edit?.confidence ?? (field.confidence as DiscoveryConfidence | undefined) ?? 'medium'
     const present = Boolean(effectiveValue)
@@ -7470,7 +7533,7 @@ function DiscoveryRow({
         setIsEditing(true)
     }
     const saveEdit = () => {
-        if (draftValue.trim().length === 0) return    // don't save empty
+        if (draftValue.trim().length === 0 || !onEdit) return    // don't save empty
         onEdit(field.key, draftValue.trim(), draftConfidence)
         setIsEditing(false)
     }
@@ -7535,17 +7598,19 @@ function DiscoveryRow({
                 ) : (
                     <span className="flex-1 inline-flex items-center gap-1 text-warning italic">
                         <AlertCircle className="h-3 w-3" aria-hidden="true" />
-                        missing · click to add
+                        {isEditable ? 'missing · click to add' : 'missing'}
                     </span>
                 )}
-                <button
-                    type="button"
-                    onClick={startEdit}
-                    className="shrink-0 inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                    aria-label={`Edit ${field.label}`}
-                >
-                    <Pencil className="h-3 w-3" aria-hidden="true" />
-                </button>
+                {isEditable && (
+                    <button
+                        type="button"
+                        onClick={startEdit}
+                        className="shrink-0 inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        aria-label={`Edit ${field.label}`}
+                    >
+                        <Pencil className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                )}
             </div>
             {wasEdited && (
                 <div className="ml-[7.25rem] mt-0.5 text-[10px] text-muted-foreground italic">
@@ -7557,68 +7622,233 @@ function DiscoveryRow({
 }
 
 // ─── sc-S.5 · Multi-Channel Outreach Draft ──────────────────────────────────
+// State model: each channel has a state (pending / approved / skipped) and one
+// of them is the channel-of-record (default = email per data flag). The rep
+// must decide (approve or skip) on all 3 before the sticky CTA enables · this
+// enforces BPMN PP6/S9 ("channel-of-record protocol · all 3 drafts logged").
+type OutreachChannelState = 'pending' | 'approved' | 'skipped'
+
 function SalesOutreachPanel({ onValidate }: LDPanelProps) {
+    const drafts = SALES_OUTREACH_DRAFTS
+    const initialCoR = drafts.find(d => d.suggestedAsChannelOfRecord)?.channel ?? drafts[0].channel
+
+    const [channelStates, setChannelStates] = useState<Record<string, OutreachChannelState>>(
+        () => drafts.reduce((acc, d) => ({ ...acc, [d.channel]: 'pending' }), {})
+    )
+    const [channelOfRecord, setChannelOfRecord] = useState<string>(initialCoR)
+    const [activeChannel, setActiveChannel] = useState<string>(initialCoR)
+    const [isSending, setIsSending] = useState(false)
+
+    const handleApprove = (channel: string) =>
+        setChannelStates(prev => ({ ...prev, [channel]: 'approved' }))
+    const handleSkip = (channel: string) =>
+        setChannelStates(prev => ({ ...prev, [channel]: 'skipped' }))
+    const handleSetCoR = (channel: string) => setChannelOfRecord(channel)
+
+    const approvedCount = Object.values(channelStates).filter(s => s === 'approved').length
+    const skippedCount = Object.values(channelStates).filter(s => s === 'skipped').length
+    const pendingCount = drafts.length - approvedCount - skippedCount
+    const canProceed = approvedCount > 0           // ≥1 approved · pending channels are "not sending"
+    const coRLabel = drafts.find(d => d.channel === channelOfRecord)?.label ?? 'Email'
+
+    // Send simulation · cascade per approved channel + activity log step.
+    const sendSteps: SendStep[] = [
+        ...drafts
+            .filter(d => channelStates[d.channel] === 'approved')
+            .map(d => ({
+                label: `Sending via ${d.label}`,
+                detail: d.subjectOrPreview,
+                durationMs: 600,
+            })),
+        { label: 'Logged to opp activity feed', detail: `Channel of record: ${coRLabel} · ${approvedCount} sent · awaiting response`, durationMs: 300 },
+    ]
+    const handleSend = () => {
+        if (isSending || !canProceed) return
+        setIsSending(true)
+        const totalMs = sendSteps.reduce((s, x) => s + x.durationMs, 0)
+        setTimeout(() => onValidate(), totalMs + 200)
+    }
+
     return (
         <>
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+            <div className="relative flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+                {isSending && <SendOverlay steps={sendSteps} />}
                 <SalesPanelHero
                     stage="sales-outreach"
-                    title="Multi-channel outreach draft"
-                    subtitle="Email · Teams · SMS · drafts only · Sales Lead reviews and confirms each send"
+                    title="Multi-channel outreach · 3 drafts"
+                    subtitle="Email · Teams · SMS · drafts only · review and decide on each channel"
                 />
 
-                <ChannelTabsComposer drafts={SALES_OUTREACH_DRAFTS} />
+                <ChannelTabsComposer
+                    drafts={drafts}
+                    activeChannel={activeChannel}
+                    onChangeActive={setActiveChannel}
+                    channelStates={channelStates}
+                    channelOfRecord={channelOfRecord}
+                    onApprove={handleApprove}
+                    onSkip={handleSkip}
+                    onSetChannelOfRecord={handleSetCoR}
+                />
 
-                <SalesSourceCite source="PP S9 (BPMN) · multi-channel chaos · same request via 3 channels · Karen ~52:00" />
+                {/* Status summary */}
+                <div className="rounded-lg border border-border bg-card px-4 py-2.5 flex items-center gap-3 flex-wrap text-[11px]">
+                    <span className="inline-flex items-center gap-1.5 text-foreground">
+                        <Star className="h-3 w-3 text-warning fill-current" aria-hidden="true" />
+                        <span className="text-muted-foreground">Channel of record:</span>
+                        <strong>{coRLabel}</strong>
+                    </span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-foreground"><strong className="text-success">{approvedCount}</strong> queued</span>
+                    {skippedCount > 0 && (
+                        <>
+                            <span className="text-muted-foreground">·</span>
+                            <span className="text-foreground"><strong className="text-muted-foreground">{skippedCount}</strong> skipped</span>
+                        </>
+                    )}
+                    {pendingCount > 0 && (
+                        <>
+                            <span className="text-muted-foreground">·</span>
+                            <span className="text-muted-foreground italic">{pendingCount} not sending</span>
+                        </>
+                    )}
+                </div>
+
+                <SalesSourceCite source="PP S9 (BPMN) · channel-of-record protocol · unified per-opportunity activity feed · drafts only, never auto-sent" />
             </div>
             <SalesStickyCTA
-                label="Queue drafts · proceed to proposal"
-                onClick={onValidate}
-                secondaryNote="CLAUDE.md rule · Strata never auto-sends · every send confirmed by the rep."
+                label={isSending
+                    ? 'Sending…'
+                    : canProceed
+                        ? `Send ${approvedCount} draft${approvedCount === 1 ? '' : 's'} · proceed to proposal`
+                        : 'Approve at least one channel to continue'
+                }
+                onClick={handleSend}
+                disabled={!canProceed || isSending}
+                secondaryNote={canProceed
+                    ? `Channel of record: ${coRLabel} · ${approvedCount} ready to send${skippedCount > 0 ? ` · ${skippedCount} skipped` : ''}${pendingCount > 0 ? ` · ${pendingCount} not sending` : ''} · BPMN PP S3 send-as-rep.`
+                    : 'Approve the channels you want to send · pending channels are simply not sent · Strata never auto-sends.'
+                }
             />
         </>
     )
 }
 
-// ─── New component · ChannelTabsComposer ────────────────────────────────────
-function ChannelTabsComposer({ drafts }: { drafts: readonly typeof SALES_OUTREACH_DRAFTS[number][] }) {
-    const [active, setActive] = useState(0)
-    const draft = drafts[active]
+// ─── ChannelTabsComposer · refactored with clear active state + per-channel actions
+function ChannelTabsComposer({
+    drafts,
+    activeChannel,
+    onChangeActive,
+    channelStates,
+    channelOfRecord,
+    onApprove,
+    onSkip,
+    onSetChannelOfRecord,
+}: {
+    drafts: readonly typeof SALES_OUTREACH_DRAFTS[number][]
+    activeChannel: string
+    onChangeActive: (channel: string) => void
+    channelStates: Record<string, OutreachChannelState>
+    channelOfRecord: string
+    onApprove: (channel: string) => void
+    onSkip: (channel: string) => void
+    onSetChannelOfRecord: (channel: string) => void
+}) {
+    const draft = drafts.find(d => d.channel === activeChannel) ?? drafts[0]
+    const state = channelStates[draft.channel] ?? 'pending'
+    const isCoR = channelOfRecord === draft.channel
 
     return (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="flex items-center gap-1 px-2 py-2 bg-muted/30 border-b border-border">
-                {drafts.map((d, i) => (
-                    <button
-                        key={i}
-                        type="button"
-                        onClick={() => setActive(i)}
-                        className={`flex-1 px-3 py-1.5 rounded text-[11px] font-medium inline-flex items-center justify-center gap-1.5 transition-colors ${
-                            active === i ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                    >
-                        <ChannelIcon channel={d.channel} />
-                        <span>{d.label}</span>
-                        {d.suggestedAsChannelOfRecord && (
-                            <span className="ml-1 inline-flex items-center text-[9px] font-bold uppercase tracking-wider rounded px-1 py-0.5 bg-ai/10 text-ai border border-ai/20">
-                                Suggested
-                            </span>
-                        )}
-                    </button>
-                ))}
+            {/* Tab bar · 3 channels with clear active state + status icons */}
+            <div className="flex items-stretch border-b border-border bg-muted/20">
+                {drafts.map(d => {
+                    const isActive = d.channel === activeChannel
+                    const tabState = channelStates[d.channel] ?? 'pending'
+                    const tabIsCoR = channelOfRecord === d.channel
+                    return (
+                        <button
+                            key={d.channel}
+                            type="button"
+                            onClick={() => onChangeActive(d.channel)}
+                            aria-pressed={isActive}
+                            className={`flex-1 px-3 py-2.5 text-[11px] inline-flex items-center justify-center gap-1.5 transition-colors border-b-2 ${
+                                isActive
+                                    ? 'border-primary bg-card text-foreground font-bold'
+                                    : 'border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+                            }`}
+                        >
+                            <ChannelIcon channel={d.channel} className="h-3.5 w-3.5" />
+                            <span className="truncate">{d.label}</span>
+                            {tabState === 'approved' && (
+                                <CheckCircle2 className="h-3 w-3 text-success shrink-0" aria-hidden="true" />
+                            )}
+                            {tabState === 'skipped' && (
+                                <X className="h-3 w-3 text-muted-foreground shrink-0" aria-hidden="true" />
+                            )}
+                            {tabIsCoR && (
+                                <Star className="h-3 w-3 text-warning fill-current shrink-0" aria-hidden="true" />
+                            )}
+                        </button>
+                    )
+                })}
             </div>
-            <div className="p-4 space-y-2">
-                <div className="text-[11px] text-foreground font-medium">{draft.subjectOrPreview}</div>
-                <div className="space-y-1.5 text-[11px] text-foreground leading-relaxed">
+
+            {/* Active draft content · scrollable body to prevent overflow */}
+            <div className="px-4 py-3 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">{draft.channel === 'email' ? 'Subject' : 'Preview'}</span>
+                    {isCoR && (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider rounded border bg-warning/10 text-warning border-warning/30 px-1.5 py-0">
+                            <Star className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
+                            Channel of record
+                        </span>
+                    )}
+                </div>
+                <div className="text-[12px] text-foreground font-medium leading-snug">
+                    {draft.subjectOrPreview}
+                </div>
+                <div className="rounded-md border border-border bg-muted/20 p-3 max-h-[240px] overflow-y-auto space-y-1.5 text-[11px] text-foreground leading-relaxed">
                     {draft.body.map((line, i) => (
-                        line === '' ? <div key={i} className="h-2" /> : <p key={i}>{line}</p>
+                        line === '' ? <div key={i} className="h-2" /> : <p key={i} className="whitespace-pre-wrap">{line}</p>
                     ))}
                 </div>
                 {draft.attachments && draft.attachments.length > 0 && (
-                    <div className="pt-2 border-t border-border flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                         <Paperclip className="h-3 w-3" aria-hidden="true" />
                         {draft.attachments.join(' · ')}
                     </div>
+                )}
+            </div>
+
+            {/* Per-channel actions footer */}
+            <div className="px-4 py-2.5 border-t border-border bg-muted/30 flex items-center gap-2 flex-wrap">
+                <button
+                    type="button"
+                    onClick={() => onApprove(draft.channel)}
+                    disabled={state === 'approved'}
+                    className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-bold bg-success/15 text-success border border-success/30 hover:bg-success/25 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                    {state === 'approved' ? 'Queued' : 'Approve & queue'}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => onSkip(draft.channel)}
+                    disabled={state === 'skipped'}
+                    className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-semibold bg-card border border-border text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                    <X className="h-3 w-3" aria-hidden="true" />
+                    {state === 'skipped' ? 'Skipped' : 'Skip channel'}
+                </button>
+                {!isCoR && (
+                    <button
+                        type="button"
+                        onClick={() => onSetChannelOfRecord(draft.channel)}
+                        className="ml-auto inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-semibold bg-warning/10 text-warning border border-warning/30 hover:bg-warning/20 transition-colors"
+                    >
+                        <Star className="h-3 w-3" aria-hidden="true" />
+                        Mark as primary
+                    </button>
                 )}
             </div>
         </div>
@@ -7628,9 +7858,26 @@ function ChannelTabsComposer({ drafts }: { drafts: readonly typeof SALES_OUTREAC
 // ─── sc-S.6 · Proposal Assembly ─────────────────────────────────────────────
 function SalesProposalPanel({ onValidate }: LDPanelProps) {
     const subtotal = SALES_PROPOSAL_LINE_ITEMS.reduce((acc, l) => acc + l.qty * l.unitPriceUSD, 0)
+    const [isSending, setIsSending] = useState(false)
+
+    // Send simulation · dual delivery (email + GC portal) per AS-IS docs.
+    const sendSteps: SendStep[] = [
+        { label: 'Composing proposal PDF', detail: `BOM + labor + GSA catalog · ${SALES_PROPOSAL_LINE_ITEMS.length} lines · $${(subtotal / 1_000_000).toFixed(2)}M list`, durationMs: 500 },
+        { label: 'Sending proposal email to Caitlin Barolet', detail: 'cbarolet@manatt.com · subject: "MANATT-4F · Proposal v1"', durationMs: 600 },
+        { label: 'Uploading to GC portal · BC-RFP-882041', detail: 'CBRE Building Connected portal · awaiting GW2 award response', durationMs: 700 },
+        { label: 'Logged to opp activity feed · SLA timer started', detail: '48h proposal SLA · auto-escalates if breached', durationMs: 300 },
+    ]
+    const handleSend = () => {
+        if (isSending) return
+        setIsSending(true)
+        const totalMs = sendSteps.reduce((s, x) => s + x.durationMs, 0)
+        setTimeout(() => onValidate(), totalMs + 200)
+    }
+
     return (
         <>
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+            <div className="relative flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+                {isSending && <SendOverlay steps={sendSteps} />}
                 <SalesPanelHero
                     stage="sales-proposal"
                     title="Proposal assembly · BOM + labor + pricing"
@@ -7677,9 +7924,10 @@ function SalesProposalPanel({ onValidate }: LDPanelProps) {
                 <SalesSourceCite source={SALES_PROPOSAL_META.quoteSource} />
             </div>
             <SalesStickyCTA
-                label="Approve proposal · queue email + portal upload"
-                onClick={onValidate}
-                secondaryNote="Today this assembly is ~6h in stops-and-starts · with Strata it's a review pass."
+                label={isSending ? 'Sending…' : 'Send proposal · email + portal upload'}
+                onClick={handleSend}
+                disabled={isSending}
+                secondaryNote="Today this assembly is ~6h in stops-and-starts · with Strata it's a review pass + dual delivery (client email + GC portal upload)."
             />
         </>
     )
@@ -7689,10 +7937,30 @@ function SalesProposalPanel({ onValidate }: LDPanelProps) {
 function SalesHandoffPanel({ onValidate }: LDPanelProps) {
     const [outcome, setOutcome] = useState<'won' | 'lost' | 'pending'>('won')
     const [route, setRoute] = useState<string>('route-furn')
+    const [isSending, setIsSending] = useState(false)
+
+    // Send simulation · BPMN PP7 orchestrator triggers next step on completion.
+    const sendSteps: SendStep[] = outcome === 'won' ? [
+        { label: 'Building handoff packet', detail: 'Works post-award form + NetSuite SO bridge + Ignite folder access', durationMs: 500 },
+        { label: 'Triggering Spec Check intake (sc1.0b)', detail: 'Design Manager (Felicia Miano-Poles) routed · capacity check started', durationMs: 500 },
+        { label: 'Triggering L&D estimation (sc-LD.0)', detail: 'Alan McPhee notified · vendor pool pre-filtered for DC', durationMs: 500 },
+        { label: 'Sending Coordinator NetSuite task', detail: 'Sales Coordinator prefilled task · no missed step', durationMs: 400 },
+        { label: 'Returning to dashboard', detail: 'Demo complete · MANATT-4F closed at $1.54M', durationMs: 300 },
+    ] : [
+        { label: outcome === 'lost' ? 'Logging loss reason · feeding lost-deal cost reporting (S3 painpoint)' : 'Logging pending status · queueing follow-up', durationMs: 400 },
+        { label: 'Returning to dashboard', durationMs: 300 },
+    ]
+    const handleSend = () => {
+        if (isSending) return
+        setIsSending(true)
+        const totalMs = sendSteps.reduce((s, x) => s + x.durationMs, 0)
+        setTimeout(() => onValidate(), totalMs + 200)
+    }
 
     return (
         <>
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+            <div className="relative flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+                {isSending && <SendOverlay steps={sendSteps} />}
                 <SalesPanelHero
                     stage="sales-handoff"
                     title="Close + auto-handoff to Ops"
@@ -7773,8 +8041,14 @@ function SalesHandoffPanel({ onValidate }: LDPanelProps) {
                 <SalesSourceCite source="PP S7 (BPMN) · post-award = 2 manual steps · coordinator NetSuite step routinely missed" />
             </div>
             <SalesStickyCTA
-                label="Finish · trigger downstream flows · return to dashboard"
-                onClick={onValidate}
+                label={isSending
+                    ? 'Sending…'
+                    : outcome === 'won' ? 'Send handoff · trigger downstream flows'
+                    : outcome === 'lost' ? 'Mark lost · return to dashboard'
+                    : 'Mark pending · return to dashboard'
+                }
+                onClick={handleSend}
+                disabled={isSending}
                 secondaryNote="Strata never auto-creates the NetSuite SO · the Sales Coordinator gets the prefilled task."
             />
         </>

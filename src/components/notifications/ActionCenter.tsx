@@ -364,27 +364,16 @@ const OFFICEWORKS_STEP_NOTIFICATIONS: Record<string, OwStepNotif> = {
     // ('sc-S.3') so the rep transitions seamlessly into discovery work.
     // Sending a fresh "Discovery summary ready" notification for an action
     // they just chose themselves is redundant.
-    'sc-S.5': {
-        badge: '1 new', badgeColor: 'ai',
-        title: 'Outreach drafts ready · email + Teams + SMS',
-        desc: 'Strata drafted across 3 channels with one channel-of-record suggestion. Drafts only · CLAUDE.md rule · the rep reviews and confirms each send.',
-        sender: 'Strata AI · Multi-Channel Composer',
-        re: 'MANATT-4F · 3-channel drafts · email primary',
-        cta: 'Open outreach drafts →',
-        event: 'officeworks:sales-outreach-open',
-        footerText: 'Outreach send pending',
-    },
-    'sc-S.6': {
-        badge: '1 new', badgeColor: 'success',
-        title: 'Proposal assembled · BOM + labor + pricing',
-        desc: 'Strata pulled Spec Check BOM + L&D labor quote + NetSuite catalog (read-only) into one proposal. The 6h stops-and-starts assembly collapses to a review pass.',
-        sender: 'Strata AI · Proposal Assembly',
-        re: 'MANATT-4F · proposal v1 · $1.54M list · GSA SQ #436533',
-        attachment: 'MANATT-4F-OW-Proposal-v1.pdf',
-        cta: 'Open proposal →',
-        event: 'officeworks:sales-proposal-open',
-        footerText: 'Proposal review pending',
-    },
+    // sc-S.5 · NO notification · same Sales Rep continuing from the sc-S.4
+    // discovery save. The modal stays open via STAYS_OPEN_WITHIN_FLOW2
+    // ('sc-S.4') so the rep transitions seamlessly into outreach drafting.
+    // Sending a fresh "Outreach drafts ready" notification for an action they
+    // just chose themselves is redundant.
+    // sc-S.6 · NO notification · same Sales Rep continuing from the sc-S.5
+    // outreach send. The modal stays open via STAYS_OPEN_WITHIN_FLOW2
+    // ('sc-S.5') so the rep transitions seamlessly into proposal review.
+    // Sending a fresh "Proposal assembled" notification for an action they
+    // just chose themselves is redundant.
     'sc-S.7': {
         badge: '1 new', badgeColor: 'success',
         title: 'Outcome ready · WON · handoff packet built',
